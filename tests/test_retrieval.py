@@ -8,13 +8,13 @@ import os.path
 from pathlib import Path
 
 from deepeval import assert_test
-from deepeval.metrics import ContextualRecallMetric, ContextualPrecisionMetric, ContextualRelevancyMetric
+from deepeval.metrics import ContextualPrecisionMetric, ContextualRecallMetric, ContextualRelevancyMetric
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
-from framework.retriever_quality import context_hit_rate
+from framework.retriever_quality import context_hit_rate, retrieve_with_latency
 
 load_dotenv()
 
@@ -36,8 +36,7 @@ def _load_test_cases():
         for i, entry in enumerate(entries):
             test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], entry["context"],
                                            id=f"{video_id}[{i}]", ))
-    return test_cases[:3]  # to test with limited inputs
-    # return test_cases
+    return test_cases[:3]  # to test with limited inputs  # return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_contextual_recall(video_id, query, expected_output, golden_context):
@@ -60,9 +59,8 @@ def test_contextual_recall(video_id, query, expected_output, golden_context):
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
-        retrieval_context=retrieval_context, )
+                            retrieval_context=retrieval_context, )
     assert_test(test_case, [ContextualRecallMetric(threshold=0.5)])
-
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_contextual_precision(video_id, query, expected_output, golden_context):
@@ -80,9 +78,8 @@ def test_contextual_precision(video_id, query, expected_output, golden_context):
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
-        retrieval_context=retrieval_context, )
+                            retrieval_context=retrieval_context, )
     assert_test(test_case, [ContextualPrecisionMetric(threshold=0.5)])
-
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_contextual_relevancy(video_id, query, expected_output, golden_context):
@@ -102,7 +99,6 @@ def test_contextual_relevancy(video_id, query, expected_output, golden_context):
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
     assert_test(test_case, [ContextualRelevancyMetric(threshold=0.5)])
-
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_context_hit_rate(video_id, query, expected_output, golden_context):
@@ -154,6 +150,54 @@ def test_context_hit_rate(video_id, query, expected_output, golden_context):
     retrieval_context = [doc.page_content for doc in retriever.invoke(query)]
 
     hit_rate = context_hit_rate(retrieval_context, golden_context)
-    assert hit_rate >= 0.5, (
-        f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'"
-    )
+    assert hit_rate >= 0.5, (f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'")
+
+LATENCY_THRESHOLD_MS = 2000
+
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+def test_retrieval_latency(video_id, query, expected_output, golden_context):
+    """
+    Non-functional metric that asserts the retriever responds within an acceptable time.
+
+    WHAT IS MEASURED
+    ----------------
+    Wall-clock time from the moment retriever.invoke(query) is called to the moment
+    results are returned. This window covers two operations:
+      1. Query embedding  — HTTP call to OpenAI text-embedding-3-small to convert the
+                            query string into a vector
+      2. Vector search    — cosine similarity search over the Chroma index on disk
+                            to find the top-k most similar chunks (k=2)
+
+    LLM generation (get_answer) is explicitly excluded. Isolating retrieval latency
+    makes it possible to detect regressions in the retrieval pipeline independently
+    of any changes to the generation step.
+
+    WHY LATENCY MATTERS FOR RAG
+    ---------------------------
+    In a production RAG system, retrieval is on the critical path of every user request.
+    A slow retriever directly adds to end-to-end response time. Tracking latency per
+    test case catches:
+      - Network degradation to the embedding API
+      - Index bloat as more vectors are added over time
+      - Regressions introduced by changes to chunk size, overlap, or k
+
+    THRESHOLD
+    ---------
+    2000ms (LATENCY_THRESHOLD_MS). The embedding API call typically takes 200-500ms
+    under normal conditions. 2000ms provides enough headroom for network variance while
+    still catching genuine slowdowns. This value should be tightened once a baseline
+    is established from real test runs.
+
+    IMPLEMENTATION NOTE
+    -------------------
+    Uses time.perf_counter() via retrieve_with_latency() for sub-millisecond precision.
+    Each test case invokes the retriever independently so latency is measured per query,
+    not as a batch average. The chatbot cache (_get_chatbot) ensures the Chroma index
+    is already loaded before timing starts — cold-start load time is not included.
+    """
+    chatbot = _get_chatbot(video_id)
+    retriever = chatbot.create_retriever()
+    _, latency_ms = retrieve_with_latency(retriever, query)
+
+    assert latency_ms < LATENCY_THRESHOLD_MS, (
+        f"Retrieval latency {latency_ms:.1f}ms exceeded threshold {LATENCY_THRESHOLD_MS}ms for query: '{query}'")

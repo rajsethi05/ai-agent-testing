@@ -6,8 +6,8 @@
    - ContextualRecallMetric (DeepEval) ✅
    - ContextualPrecisionMetric (DeepEval) ✅
    - ContextualRelevancyMetric (DeepEval) ✅
-   - Context hit rate
-   - Retrieval latency
+   - Context hit rate ✅
+   - Retrieval latency ✅
 
 2. Hallucination Detection Module
    - Faithfulness scorer (does answer match retrieved context?)

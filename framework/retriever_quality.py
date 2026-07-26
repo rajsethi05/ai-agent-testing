@@ -2,7 +2,10 @@
 Retriever quality utilities for the RAG evaluation framework.
 Contains deterministic (non-LLM) metrics for measuring retrieval performance.
 """
-from typing import List
+import time
+from typing import List, Tuple
+
+from langchain_core.retrievers import BaseRetriever
 
 
 def token_overlap(text_a: str, text_b: str) -> float:
@@ -83,3 +86,44 @@ def context_hit_rate(retrieved_chunks: List[str], golden_chunks: List[str],
         if any(token_overlap(golden, retrieved) >= overlap_threshold for retrieved in retrieved_chunks)
     )
     return hits / len(golden_chunks)
+
+
+def retrieve_with_latency(retriever: BaseRetriever, query: str) -> Tuple[List[str], float]:
+    """
+    Invokes the retriever and measures how long it takes.
+
+    WHAT IS RETRIEVAL LATENCY?
+    --------------------------
+    Retrieval latency is the wall-clock time (in milliseconds) between sending a query
+    to the retriever and receiving the result. It is a non-functional metric — it does
+    not assess what was retrieved, only how fast.
+
+    For this RAG pipeline the retriever does two things on every call:
+      1. Embeds the query  — an HTTP call to OpenAI's text-embedding-3-small API
+      2. Vector search     — a cosine similarity search over the Chroma index on disk
+
+    Both steps are captured in the measured window. The LLM generation step (get_answer)
+    is deliberately excluded so that retrieval latency can be tracked independently of
+    response generation latency.
+
+    WHY time.perf_counter()?
+    ------------------------
+    perf_counter() is the highest-resolution monotonic clock available in Python. Unlike
+    time.time() it is not affected by system clock adjustments, making it reliable for
+    measuring short durations (sub-second to a few seconds).
+
+    PARAMETERS
+    ----------
+    retriever  : a LangChain BaseRetriever (Chroma-backed, as created by YTChatbot)
+    query      : the natural-language question to retrieve chunks for
+
+    RETURNS
+    -------
+    Tuple of:
+      - List[str]  : page content of each retrieved document chunk
+      - float      : elapsed time in milliseconds
+    """
+    start = time.perf_counter()
+    docs = retriever.invoke(query)
+    latency_ms = (time.perf_counter() - start) * 1000
+    return [doc.page_content for doc in docs], latency_ms
