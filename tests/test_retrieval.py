@@ -8,7 +8,7 @@ import os.path
 from pathlib import Path
 
 from deepeval import assert_test
-from deepeval.metrics import ContextualRecallMetric
+from deepeval.metrics import ContextualRecallMetric, ContextualPrecisionMetric
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
@@ -35,8 +35,8 @@ def _load_test_cases():
         for i, entry in enumerate(entries):
             test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], entry["context"],
                                            id=f"{video_id}[{i}]", ))
-    # return test_cases[:3]  # to test with limited inputs
-    return test_cases
+    return test_cases[:3]  # to test with limited inputs
+    # return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_contextual_recall(video_id, query, expected_output, golden_context):
@@ -61,3 +61,23 @@ def test_contextual_recall(video_id, query, expected_output, golden_context):
     test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
         retrieval_context=retrieval_context, )
     assert_test(test_case, [ContextualRecallMetric(threshold=0.5)])
+
+
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+def test_contextual_precision(video_id, query, expected_output, golden_context):
+    """
+    Checks whether the retrieved chunks that are relevant to the question are ranked higher than irrelevant ones.
+    Aim: catch cases where your retriever returns the right chunks but buries them behind noise. If chunk #1 is
+    irrelevant and chunk #2 contains the answer, precision is penalised — your ranking needs improvement.
+
+    Deepeval definition: The contextual precision metric uses LLM-as-a-judge to measure the quality of your RAG
+    pipeline's retriever by evaluating whether relevant nodes in your retrieval_context are ranked higher than
+    irrelevant ones.
+    """
+    chatbot = _get_chatbot(video_id)
+    actual_output = chatbot.get_answer(query)
+    retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
+
+    test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
+        retrieval_context=retrieval_context, )
+    assert_test(test_case, [ContextualPrecisionMetric(threshold=0.5)])
