@@ -8,7 +8,7 @@ import os.path
 from pathlib import Path
 
 from deepeval import assert_test
-from deepeval.metrics import ContextualRecallMetric, ContextualPrecisionMetric
+from deepeval.metrics import ContextualRecallMetric, ContextualPrecisionMetric, ContextualRelevancyMetric
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
@@ -81,3 +81,23 @@ def test_contextual_precision(video_id, query, expected_output, golden_context):
     test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
         retrieval_context=retrieval_context, )
     assert_test(test_case, [ContextualPrecisionMetric(threshold=0.5)])
+
+
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+def test_contextual_relevancy(video_id, query, expected_output, golden_context):
+    """
+    Checks whether the retrieved chunks are actually relevant to the input query.
+    Aim: catch cases where your retriever returns chunks that technically match keywords but don't address the question.
+    Unlike recall (which checks against the expected answer), relevancy judges the retrieved context against the
+    input alone — so it catches noise even when the answer can still be constructed.
+
+    Deepeval definition: The contextual relevancy metric uses LLM-as-a-judge to measure the quality of your RAG
+    pipeline's retriever by evaluating the overall relevance of the information presented in your retrieval_context
+    given an input.
+    """
+    chatbot = _get_chatbot(video_id)
+    actual_output = chatbot.get_answer(query)
+    retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
+
+    test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
+    assert_test(test_case, [ContextualRelevancyMetric(threshold=0.5)])

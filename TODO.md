@@ -3,8 +3,8 @@
 #### Core Testing Modules to Build
 
 1. Retrieval Quality Module
-   - ContextualRecallMetric (DeepEval)
-   - ContextualPrecisionMetric (DeepEval)
+   - ContextualRecallMetric (DeepEval) ✅
+   - ContextualPrecisionMetric (DeepEval) ✅
    - ContextualRelevancyMetric (DeepEval)
    - Context hit rate
    - Retrieval latency
