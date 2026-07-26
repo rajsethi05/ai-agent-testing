@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
+from framework.retriever_quality import context_hit_rate
 
 load_dotenv()
 
@@ -101,3 +102,58 @@ def test_contextual_relevancy(video_id, query, expected_output, golden_context):
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
     assert_test(test_case, [ContextualRelevancyMetric(threshold=0.5)])
+
+
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+def test_context_hit_rate(video_id, query, expected_output, golden_context):
+    """
+    Deterministic metric that checks whether the live retriever fetches the same source
+    chunks that were used to generate the golden Q&A pair.
+
+    WHAT IS CONTEXT HIT RATE?
+    -------------------------
+    Each golden dataset entry has a `context` field — the exact transcript chunks the
+    Synthesizer saw when it created the question and expected answer. These are the
+    ground-truth source chunks: what a perfect retriever would return.
+
+    Context Hit Rate measures how much of that ground truth the live retriever actually
+    covers:
+
+        hit_rate = (golden chunks matched by at least one retrieved chunk)
+                   / (total golden chunks)
+
+    A score of 1.0 means every golden chunk was found. A score of 0.0 means none were.
+
+    HOW MATCHING WORKS
+    ------------------
+    Exact string equality is not used because chunk sizes differ: the Synthesizer used
+    chunk_size=150 tokens while the chatbot uses chunk_size=600 chars. Instead, Jaccard
+    token overlap is computed between each pair of (retrieved chunk, golden chunk).
+    A pair is considered a match when overlap >= 0.5 (at least half the tokens overlap).
+
+    WHY THIS METRIC MATTERS
+    -----------------------
+    The three DeepEval contextual metrics (recall, precision, relevancy) use an LLM as
+    judge — they are powerful but slow and costly. Context Hit Rate is:
+      - Deterministic  : no LLM calls, no API cost
+      - Fast           : pure string computation
+      - Foundational   : if hit rate is 0, the retriever never found the source material,
+                         and no downstream LLM quality can compensate
+
+    It is the cheapest first signal that retrieval is working at all, and complements
+    the LLM-judge metrics rather than replacing them.
+
+    THRESHOLD
+    ---------
+    Asserts hit_rate >= 0.5, meaning at least half the golden chunks must be covered.
+    With k=2 chunks retrieved and golden context often containing 2-3 chunks, this is
+    a meaningful but achievable bar.
+    """
+    chatbot = _get_chatbot(video_id)
+    retriever = chatbot.create_retriever()
+    retrieval_context = [doc.page_content for doc in retriever.invoke(query)]
+
+    hit_rate = context_hit_rate(retrieval_context, golden_context)
+    assert hit_rate >= 0.5, (
+        f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'"
+    )

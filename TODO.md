@@ -5,7 +5,7 @@
 1. Retrieval Quality Module
    - ContextualRecallMetric (DeepEval) ✅
    - ContextualPrecisionMetric (DeepEval) ✅
-   - ContextualRelevancyMetric (DeepEval)
+   - ContextualRelevancyMetric (DeepEval) ✅
    - Context hit rate
    - Retrieval latency
 
