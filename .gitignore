@@ -1,7 +1,9 @@
 # User defined
 .idea
 .deepeval
-
+.bin
+.sqlite3
+agents/rag_youtube_chatbot/vector_stores/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

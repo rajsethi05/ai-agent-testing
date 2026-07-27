@@ -2,10 +2,15 @@
 
 #### Core Testing Modules to Build
 
-1. Hallucination Detection Module
+1. Retrieval Quality Module
+   - ContextualRecallMetric (DeepEval) ✅
+   - ContextualPrecisionMetric (DeepEval) ✅
+   - ContextualRelevancyMetric (DeepEval) ✅
+   - Context hit rate ✅
+   - Retrieval latency ✅
+
+2. Hallucination Detection Module
    - Faithfulness scorer (does answer match retrieved context?)
-   - Consistency checker (multiple generations → similar outputs?)
-   - LLM-as-judge evaluator
    - Groundedness metrics
 
 2. Prompt Injection Testing Module
@@ -16,20 +21,16 @@
 
 3. Deterministic Testing Module
    * Temperature=0 consistency tests
-   * Response reproducibility checker
-   * State transition validator
 
 4. Output Validation Module
    * Schema validator (Pydantic models)
    * Format checker (JSON, structured outputs)
    * Citation validator (for RAG responses)
-   * Boundary/edge case tester
 
 5. Cost Tracking Module
    * Token counter (input + output)
    * API call tracker
    * Cost calculator (per model pricing)
-   * Budget alerting system
 
 6. Metrics Collection & Reporting
    * Precision/Recall/F1 calculator

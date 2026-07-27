@@ -9,7 +9,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter, CharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from agents.logging_config import get_logger
@@ -27,6 +27,7 @@ class Config:
     prompt = ChatPromptTemplate([("system", """
             You are a helpful assistant. Answer questions about the video. Use the provided transcript context.
             {context}"""), ("human", "{question}")])
+
 '''
     prompt = ChatPromptTemplate([("system", """
     You are a helpful assistant. Your job is to provide the answer to the user's question with explanation.
@@ -130,6 +131,9 @@ class YTChatbot:
         return self.retriever
 
     def get_answer(self, question):
+        if self.retriever is None:
+            self.retriever = self.create_retriever()
+
         retriever_chain = RunnableParallel(
             {"context": self.retriever | RunnableLambda(self.format_context), "question": RunnablePassthrough()})
 
