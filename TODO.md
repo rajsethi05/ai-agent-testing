@@ -12,34 +12,34 @@
 2. Hallucination Detection Module
    - Faithfulness scorer ✅
    - Answer Relevancy ✅
-   - Consistency checker
+   - Consistency checker ✅
 
-2. Prompt Injection Testing Module
+3. Prompt Injection Testing Module
    - Library of injection patterns (20-30 test cases)
    - Direct injection detector
    - Indirect injection simulator (malicious content in retrieved docs)
    - Success/failure tracker
 
-3. Deterministic Testing Module
+4. Deterministic Testing Module
    * Temperature=0 consistency tests
 
-4. Output Validation Module
+5. Output Validation Module
    * Schema validator (Pydantic models)
    * Format checker (JSON, structured outputs)
    * Citation validator (for RAG responses)
 
-5. Cost Tracking Module
+6. Cost Tracking Module
    * Token counter (input + output)
    * API call tracker
    * Cost calculator (per model pricing)
 
-6. Metrics Collection & Reporting
+7. Metrics Collection & Reporting
    * Precision/Recall/F1 calculator
    * Latency tracker
    * Success rate aggregator
    * Results visualizer (tables/charts)
 
-7. Regression Pipeline
+8. Regression Pipeline
    * Test suite organization
    * CI/CD integration (GitHub Actions)
    * Automated test runner

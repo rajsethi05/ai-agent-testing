@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
+from framework.metrices import Consistency_metric
 
 load_dotenv()
 
@@ -95,7 +96,8 @@ groundedness_metric = GEval(name="Groundedness", evaluation_steps=[
     "Penalise answers that extrapolate or draw inferences beyond what the context directly states.",
     "Penalise answers that use generalisations such as 'generally', 'typically', 'experts say', or 'studies show' when the context does not support such claims.",
     "Reward answers that accurately reflect the scope and limitations of the provided context, including saying 'I don't know' when the context is insufficient.", ],
-    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.RETRIEVAL_CONTEXT], )
+                            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT,
+                                               LLMTestCaseParams.RETRIEVAL_CONTEXT], )
 
 @pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
 def test_answer_relevancy(video_id, query, expected_output):
@@ -157,3 +159,56 @@ def test_answer_relevancy(video_id, query, expected_output):
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
     assert_test(test_case, [AnswerRelevancyMetric(threshold=0.7)])
+
+@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+def test_consistency(video_id, query, expected_output):
+    """
+    Detects hallucination instability by checking whether the LLM gives consistent
+    answers when asked the same question twice.
+
+    WHAT IS CONSISTENCY?
+    --------------------
+    Consistency measures whether two independently generated answers to the same query
+    agree on the facts. If they contradict each other, at least one answer contains
+    a hallucination — a model that is genuinely grounded in the retrieved context
+    should produce stable, non-contradictory answers across runs.
+
+        consistency = absence of factual contradictions between answer_1 and answer_2
+
+    WHY INCONSISTENCY SIGNALS HALLUCINATION
+    ----------------------------------------
+    When the LLM answers from the retrieved context, the context acts as an anchor —
+    both answers should reflect the same source material and therefore agree. When the
+    LLM generates from parametric memory (hallucination), its outputs are stochastic
+    and can vary between runs, producing contradictions.
+
+    Inconsistency is therefore a hallucination signal even when we cannot verify which
+    answer is correct — we know that at minimum one is wrong.
+
+    HOW IT DIFFERS FROM DETERMINISTIC TESTING (TODO #3)
+    ----------------------------------------------------
+    Consistency and determinism are related but distinct:
+
+      Consistency (this metric) — Do two answers agree on the facts? Tolerates
+                                   differences in phrasing or detail level.
+      Determinism (TODO #3)     — Is the exact output character-for-character identical
+                                   at temperature=0? A stricter, reproducibility-focused check.
+
+    HOW THE TEST WORKS
+    ------------------
+    get_answer() is called twice for the same query. The two responses are placed in
+    actual_output and expected_output of LLMTestCase — repurposing expected_output as
+    a second answer rather than a ground-truth label. The GEval consistency_metric then
+    compares the two for factual contradictions.
+
+    THRESHOLD
+    ---------
+    0.7 — consistent with other hallucination metrics. Some minor variation between
+    runs is acceptable; the metric penalises factual contradictions, not stylistic ones.
+    """
+    chatbot = _get_chatbot(video_id)
+    answer_1 = chatbot.get_answer(query)
+    answer_2 = chatbot.get_answer(query)
+
+    test_case = LLMTestCase(input=query, actual_output=answer_1, expected_output=answer_2)
+    assert_test(test_case, [Consistency_metric])
