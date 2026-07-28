@@ -10,8 +10,9 @@
    - Retrieval latency ✅
 
 2. Hallucination Detection Module
-   - Faithfulness scorer (does answer match retrieved context?)
+   - Faithfulness scorer ✅
    - Groundedness metrics
+   - Consistency checker
 
 2. Prompt Injection Testing Module
    - Library of injection patterns (20-30 test cases)
