@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Instructions
+- When asked to implement any metrics, first plan and provide the details of the metrics. Then wait for my approval before actually making the code changes. 
+- When implementing the metrics, provide detailed doc string of the metrics. If the metrics implemented is a deepeval metrics, then also provide deepeval definition.
+
 ## Project Purpose
 
 An industry-grade testing framework for LangChain/LangGraph agents, demonstrating QA expertise for LLM systems. The primary agent under test is a YouTube RAG chatbot. The framework evaluates agents using [DeepEval](https://docs.confident-ai.com/) metrics (GEval, Faithfulness, AnswerRelevancy) and synthetic golden datasets.

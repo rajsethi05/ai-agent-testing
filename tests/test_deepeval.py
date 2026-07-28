@@ -1,6 +1,5 @@
-from deepeval import assert_test
-from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 from deepeval.metrics import GEval
+from deepeval.test_case import LLMTestCaseParams
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,20 +11,20 @@ Metrics Creation:
 - evaluation_params: a list of type LLMTestCaseParams. Include only the parameters that are relevant for evaluation
 - threshold: passing threshold. As all the evaluation is scored in the range of 0-1
 
+DeepEval uses OpenAI GPT-4o as its default LLM judge when OPENAI_API_KEY is set in .env — which is the case in this project. No explicit model override is configured, so all LLM-as-a-judge metrics (FaithfulnessMetric, ContextualRecallMetric, AnswerRelevancyMetric, GEval etc.) are calling GPT-4o under the hood.
+
+You can override it per-metric if needed, e.g.:
+FaithfulnessMetric(threshold=0.7, model="gpt-4o-mini")
+gpt-4o-mini would be cheaper and faster for evaluation at the cost of some accuracy.
+
 https://deepeval.com/docs/metrics-llm-evals#usage
 '''
-correctness_metric = GEval(
-    name="Correctness",
+correctness_metric = GEval(name="Correctness",
     criteria="Determine whether the actual output is factually correct based on the expected output.",
     # NOTE: you can only provide either criteria or evaluation_steps, and not both
-    evaluation_steps=[
-        "Check whether the facts in 'actual output' contradicts any facts in 'expected output'",
-        "You should also heavily penalize omission of detail",
-        "Vague language, or contradicting OPINIONS, are OK"
-    ],
-    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.EXPECTED_OUTPUT],
-)
-
+    evaluation_steps=["Check whether the facts in 'actual output' contradicts any facts in 'expected output'",
+        "You should also heavily penalize omission of detail", "Vague language, or contradicting OPINIONS, are OK"],
+    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.EXPECTED_OUTPUT], )
 
 # def test_correctness():
 #     test_case = LLMTestCase(
