@@ -11,7 +11,7 @@
 
 2. Hallucination Detection Module
    - Faithfulness scorer ✅
-   - Groundedness metrics
+   - Answer Relevancy ✅
    - Consistency checker
 
 2. Prompt Injection Testing Module

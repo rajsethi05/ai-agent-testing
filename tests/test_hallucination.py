@@ -8,8 +8,8 @@ import os.path
 from pathlib import Path
 
 from deepeval import assert_test
-from deepeval.metrics import FaithfulnessMetric
-from deepeval.test_case import LLMTestCase
+from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric, GEval
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 from dotenv import load_dotenv
 import pytest
 
@@ -33,11 +33,8 @@ def _load_test_cases():
         video_id = json_file.stem
         entries = json.loads(json_file.read_text())
         for i, entry in enumerate(entries):
-            test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"],
-                                           id=f"{video_id}[{i}]"))
-    return test_cases[:3]  # to test with limited inputs
-    # return test_cases
-
+            test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], id=f"{video_id}[{i}]"))
+    return test_cases[:3]  # to test with limited inputs  # return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
 def test_faithfulness(video_id, query, expected_output):
@@ -92,3 +89,71 @@ def test_faithfulness(video_id, query, expected_output):
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
     assert_test(test_case, [FaithfulnessMetric(threshold=0.7)])
+
+groundedness_metric = GEval(name="Groundedness", evaluation_steps=[
+    "Check if the answer introduces any information, conclusions, or recommendations that are not explicitly present in the retrieval context.",
+    "Penalise answers that extrapolate or draw inferences beyond what the context directly states.",
+    "Penalise answers that use generalisations such as 'generally', 'typically', 'experts say', or 'studies show' when the context does not support such claims.",
+    "Reward answers that accurately reflect the scope and limitations of the provided context, including saying 'I don't know' when the context is insufficient.", ],
+    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.RETRIEVAL_CONTEXT], )
+
+@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+def test_answer_relevancy(video_id, query, expected_output):
+    """
+    Checks whether the LLM's answer actually addresses the question that was asked.
+
+    WHAT IS ANSWER RELEVANCY?
+    -------------------------
+    Answer relevancy measures the proportion of statements in the actual_output that
+    are directly relevant to the input query:
+
+        answer_relevancy = (statements relevant to the input)
+                           / (total statements in actual_output)
+
+    A score of 1.0 means every part of the answer addresses the question.
+    A score of 0.0 means the answer is entirely off-topic.
+
+    HOW IT DIFFERS FROM FAITHFULNESS AND GROUNDEDNESS
+    --------------------------------------------------
+    Faithfulness and groundedness both check the relationship between the answer and
+    the retrieved context. Answer relevancy checks the relationship between the answer
+    and the input query — an orthogonal dimension:
+
+      Faithfulness   — Does the answer stick to the context? (answer vs context)
+      Groundedness   — Does the answer stay within context boundaries? (answer vs context)
+      AnswerRelevancy — Does the answer address the question? (answer vs input)
+
+    An answer can score perfectly on faithfulness and groundedness while still failing
+    relevancy. For example:
+      Query: "What is shrinkflation?"
+      Context: contains information about both shrinkflation and inflation.
+      LLM answers: "Inflation is the general rise in price levels across an economy."
+      → Faithful (supported by context), Grounded (no extrapolation), but NOT relevant
+        to the specific question asked.
+
+    WHY THIS MATTERS IN RAG
+    -----------------------
+    RAG pipelines can retrieve chunks that contain the answer but also a lot of surrounding
+    content. If the LLM latches onto the surrounding content instead of the answer, the
+    user gets a response that is technically accurate but unhelpful. Answer relevancy
+    catches this failure mode.
+
+    HOW DEEPEVAL COMPUTES IT
+    ------------------------
+    AnswerRelevancyMetric uses LLM-as-a-judge:
+      1. Extracts individual statements from actual_output
+      2. For each statement, judges whether it is relevant to the input query
+      3. Returns the fraction of relevant statements as the score
+
+    THRESHOLD
+    ---------
+    0.7 — at least 70% of the answer's statements must address the question. This
+    allows for brief contextual framing while penalising answers that substantially
+    drift from the query.
+    """
+    chatbot = _get_chatbot(video_id)
+    actual_output = chatbot.get_answer(query)
+    retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
+
+    test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
+    assert_test(test_case, [AnswerRelevancyMetric(threshold=0.7)])
