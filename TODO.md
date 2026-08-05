@@ -15,10 +15,10 @@
    - Consistency checker ✅
 
 3. Prompt Injection Testing Module
-   - Library of injection patterns (20-30 test cases)
-   - Direct injection detector
-   - Indirect injection simulator (malicious content in retrieved docs)
-   - Success/failure tracker
+   - Library of injection patterns (20-30 test cases) ✅
+   - Direct injection detector ✅
+   - Indirect injection simulator (malicious content in retrieved docs) ✅
+   - Success/failure tracker ✅
 
 4. Deterministic Testing Module
    * Temperature=0 consistency tests
