@@ -21,17 +21,15 @@
    - Success/failure tracker ✅
 
 4. Deterministic Testing Module
-   * Temperature=0 consistency tests
+   * Temperature=0 consistency tests ✅
 
 5. Output Validation Module
-   * Schema validator (Pydantic models)
-   * Format checker (JSON, structured outputs)
-   * Citation validator (for RAG responses)
+   * Skipped — YouTube RAG chatbot returns plain text with no structured output schema to validate 🚫
 
 6. Cost Tracking Module
-   * Token counter (input + output)
-   * API call tracker
-   * Cost calculator (per model pricing)
+   - Token counter (input + output) ✅
+   - API call tracker ✅
+   - Cost calculator (per model pricing) ✅
 
 7. Metrics Collection & Reporting
    * Precision/Recall/F1 calculator
