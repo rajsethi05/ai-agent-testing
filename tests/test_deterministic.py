@@ -49,20 +49,17 @@ import json
 import os
 from pathlib import Path
 
-import pytest
 from deepeval import assert_test
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnablePassthrough
 from langchain_openai import ChatOpenAI
+import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot
-from framework.deterministic.checker import (
-    SemanticEquivalenceMetric,
-    compute_exact_match_rate,
-    compute_length_cv,
-)
+from framework.deterministic.checker import (SemanticEquivalenceMetric, compute_exact_match_rate, compute_length_cv, )
+from framework.utils import log_metrics
 
 load_dotenv()
 
@@ -77,7 +74,6 @@ _parser = StrOutputParser()
 
 _chatbot_cache: dict[str, YTChatbot] = {}
 
-
 def _get_chatbot(video_id: str) -> YTChatbot:
     if video_id not in _chatbot_cache:
         bot = YTChatbot(video_id)
@@ -85,20 +81,11 @@ def _get_chatbot(video_id: str) -> YTChatbot:
         _chatbot_cache[video_id] = bot
     return _chatbot_cache[video_id]
 
-
 def _get_answer_t0(chatbot: YTChatbot, question: str) -> str:
     """Run the chatbot's RAG chain at temperature=0, reusing its retriever and prompt."""
-    chain = (
-        RunnableParallel({
-            "context": chatbot.retriever | RunnableLambda(chatbot.format_context),
-            "question": RunnablePassthrough(),
-        })
-        | Config.prompt
-        | _llm_t0
-        | _parser
-    )
+    chain = (RunnableParallel({"context": chatbot.retriever | RunnableLambda(chatbot.format_context),
+        "question": RunnablePassthrough(), }) | Config.prompt | _llm_t0 | _parser)
     return chain.invoke(question)
-
 
 def _load_test_cases():
     test_cases = []
@@ -106,14 +93,11 @@ def _load_test_cases():
         video_id = json_file.stem
         entries = json.loads(json_file.read_text())
         for i, entry in enumerate(entries):
-            test_cases.append(
-                pytest.param(video_id, entry["input"], id=f"{video_id}[{i}]")
-            )
+            test_cases.append(pytest.param(video_id, entry["input"], id=f"{video_id}[{i}]"))
     return test_cases[:3]
 
-
 @pytest.mark.parametrize("video_id,query", _load_test_cases())
-def test_exact_match(video_id, query):
+def test_exact_match(video_id, query, request):
     """
     Asserts that N=3 calls at temperature=0 produce character-for-character identical outputs.
 
@@ -136,14 +120,12 @@ def test_exact_match(video_id, query):
     chatbot = _get_chatbot(video_id)
     outputs = [_get_answer_t0(chatbot, query) for _ in range(_N_RUNS)]
     rate = compute_exact_match_rate(outputs)
-    assert rate == 1.0, (
-        f"ExactMatchRate={rate:.2f} — not all {_N_RUNS} outputs were identical.\n"
-        + "\n".join(f"Run {i}: {repr(o)}" for i, o in enumerate(outputs))
-    )
-
+    request.node.metric_val = log_metrics(match_rate=rate)
+    assert rate == 1.0, (f"ExactMatchRate={rate:.2f} — not all {_N_RUNS} outputs were identical.\n" + "\n".join(
+        f"Run {i}: {repr(o)}" for i, o in enumerate(outputs)))
 
 @pytest.mark.parametrize("video_id,query", _load_test_cases())
-def test_output_length_stability(video_id, query):
+def test_output_length_stability(video_id, query, request):
     """
     Asserts that N=3 temperature=0 outputs have less than 5% variation in length.
 
@@ -171,14 +153,12 @@ def test_output_length_stability(video_id, query):
     chatbot = _get_chatbot(video_id)
     outputs = [_get_answer_t0(chatbot, query) for _ in range(_N_RUNS)]
     cv = compute_length_cv(outputs)
-    assert cv < _LENGTH_CV_THRESHOLD, (
-        f"OutputLengthCV={cv:.4f} exceeds threshold {_LENGTH_CV_THRESHOLD}.\n"
-        f"Lengths: {[len(o) for o in outputs]}"
-    )
-
+    request.node.metric_val = log_metrics(length_cv=cv)
+    assert cv < _LENGTH_CV_THRESHOLD, (f"OutputLengthCV={cv:.4f} exceeds threshold {_LENGTH_CV_THRESHOLD}.\n"
+                                       f"Lengths: {[len(o) for o in outputs]}")
 
 @pytest.mark.parametrize("video_id,query", _load_test_cases())
-def test_semantic_equivalence(video_id, query):
+def test_semantic_equivalence(video_id, query, request):
     """
     Asserts that two temperature=0 answers are informationally identical (GEval).
 
@@ -213,9 +193,6 @@ def test_semantic_equivalence(video_id, query):
     answer_1 = _get_answer_t0(chatbot, query)
     answer_2 = _get_answer_t0(chatbot, query)
 
-    test_case = LLMTestCase(
-        input=query,
-        actual_output=answer_1,
-        expected_output=answer_2,
-    )
+    test_case = LLMTestCase(input=query, actual_output=answer_1, expected_output=answer_2, )
+    request.node.metric_val = log_metrics(semantic_score=SemanticEquivalenceMetric.score)
     assert_test(test_case, [SemanticEquivalenceMetric])

@@ -50,12 +50,11 @@ assert tracker.is_within_budget(5.00)  # fail if run cost more than $5
 
 from datetime import datetime
 
-import pytest
 from dotenv import load_dotenv
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
 from framework.cost_tracking.cost_tracker import CallRecord, CostTracker
-
+from framework.utils import log_metrics
 load_dotenv()
 
 _VIDEO_ID = "HAoKJT3af7Y"
@@ -64,7 +63,6 @@ _COST_PER_QUERY_LIMIT_USD = 0.01
 
 _chatbot_cache: dict[str, YTChatbot] = {}
 
-
 def _get_chatbot(video_id: str) -> YTChatbot:
     if video_id not in _chatbot_cache:
         bot = YTChatbot(video_id)
@@ -72,23 +70,15 @@ def _get_chatbot(video_id: str) -> YTChatbot:
         _chatbot_cache[video_id] = bot
     return _chatbot_cache[video_id]
 
-
 def _make_record(input_tokens: int, output_tokens: int, cost_usd: float) -> CallRecord:
-    return CallRecord(
-        operation="test_op",
-        model="gpt-5-mini",
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        cost_usd=cost_usd,
-        timestamp=datetime.now(),
-    )
-
+    return CallRecord(operation="test_op", model="gpt-5-mini", input_tokens=input_tokens, output_tokens=output_tokens,
+                      cost_usd=cost_usd, timestamp=datetime.now(), )
 
 # ──────────────────────────────────────────────
 # Integration tests
 # ──────────────────────────────────────────────
 
-def test_single_query_captures_tokens_and_cost():
+def test_single_query_captures_tokens_and_cost(request):
     """
     Assert that input_tokens, output_tokens, cost_usd are all greater than zero,
     and that cost stays below $0.01 for a single tracked get_answer() call.
@@ -119,19 +109,17 @@ def test_single_query_captures_tokens_and_cost():
     tracker.track("get_answer", chatbot.get_answer, _TEST_QUESTION)
 
     summary = tracker.get_summary()
+    request.node.metric_val = log_metrics(cost=summary["total_cost_usd"])
+
     assert summary["total_input_tokens"] > 0, "No input tokens captured — callback may not be intercepting calls"
     assert summary["total_output_tokens"] > 0, "No output tokens captured — LLM may have returned an empty response"
-    assert summary["total_cost_usd"] > 0, (
-        "Cost is 0.0 despite non-zero tokens — check that Config.llm_model_name "
-        "is present in CostTracker.PRICING"
-    )
+    assert summary["total_cost_usd"] > 0, ("Cost is 0.0 despite non-zero tokens — check that Config.llm_model_name "
+                                           "is present in CostTracker.PRICING")
     assert summary["total_cost_usd"] < _COST_PER_QUERY_LIMIT_USD, (
         f"Single query cost ${summary['total_cost_usd']:.6f} exceeds "
-        f"limit ${_COST_PER_QUERY_LIMIT_USD} — possible prompt bloat or retrieval misconfiguration"
-    )
+        f"limit ${_COST_PER_QUERY_LIMIT_USD} — possible prompt bloat or retrieval misconfiguration")
 
-
-def test_multiple_queries_cost_accumulates():
+def test_multiple_queries_cost_accumulates(request):
     """
     Assert that running three tracked get_answer() calls produces a total cost
     equal to the sum of each individual call's cost, and that total_cost is
@@ -149,11 +137,9 @@ def test_multiple_queries_cost_accumulates():
     - reset() is being called internally between calls.
     - The accumulation logic in get_summary() sums incorrectly.
     """
-    questions = [
-        "How does Deep Eval automate comparison of different LLMs?",
-        "What metrics does Deep Eval use to evaluate LLM outputs?",
-        "How does LLM-as-a-judge work in Deep Eval?",
-    ]
+    questions = ["How does Deep Eval automate comparison of different LLMs?",
+                 "What metrics does Deep Eval use to evaluate LLM outputs?",
+                 "How does LLM-as-a-judge work in Deep Eval?", ]
     chatbot = _get_chatbot(_VIDEO_ID)
     tracker = CostTracker()
 
@@ -162,25 +148,22 @@ def test_multiple_queries_cost_accumulates():
         tracker.track("get_answer", chatbot.get_answer, q)
         individual_costs.append(tracker.get_summary()["total_cost_usd"])
 
-    per_call_costs = [individual_costs[0]] + [
-        individual_costs[i] - individual_costs[i - 1] for i in range(1, len(individual_costs))
-    ]
+    per_call_costs = [individual_costs[0]] + [individual_costs[i] - individual_costs[i - 1] for i in
+                                              range(1, len(individual_costs))]
 
     summary = tracker.get_summary()
+    request.node.metric_val = log_metrics(cost=summary["total_cost_usd"])
     assert summary["call_count"] == 3, f"Expected 3 records, got {summary['call_count']}"
     assert summary["total_cost_usd"] > per_call_costs[0], (
-        "Total cost after 3 calls should exceed a single call's cost"
-    )
+        "Total cost after 3 calls should exceed a single call's cost")
     assert abs(summary["total_cost_usd"] - sum(per_call_costs)) < 1e-10, (
-        f"Total cost {summary['total_cost_usd']} does not match sum of individual costs {sum(per_call_costs)}"
-    )
-
+        f"Total cost {summary['total_cost_usd']} does not match sum of individual costs {sum(per_call_costs)}")
 
 # ──────────────────────────────────────────────
 # Unit tests (no API calls)
 # ──────────────────────────────────────────────
 
-def test_calculate_cost_accuracy():
+def test_calculate_cost_accuracy(request):
     """
     Assert that calculate_cost() returns the exact expected USD amount for
     known token counts and the gpt-5-mini model.
@@ -209,8 +192,7 @@ def test_calculate_cost_accuracy():
     expected = (1000 * 0.25 / 1_000_000) + (200 * 2.00 / 1_000_000)
     assert abs(cost - expected) < 1e-10, f"Expected ${expected}, got ${cost}"
 
-
-def test_cost_summary_has_required_fields():
+def test_cost_summary_has_required_fields(request):
     """
     Assert that get_summary() returns a dict containing all required keys with
     the correct types.
@@ -226,17 +208,13 @@ def test_cost_summary_has_required_fields():
 
     summary = tracker.get_summary()
 
-    required_keys = {
-        "call_count", "total_tokens", "total_input_tokens",
-        "total_output_tokens", "total_cost_usd", "calls",
-    }
-    assert required_keys.issubset(summary.keys()), (
-        f"Missing keys: {required_keys - summary.keys()}"
-    )
+    required_keys = {"call_count", "total_tokens", "total_input_tokens", "total_output_tokens", "total_cost_usd",
+                     "calls", }
+    request.node.metric_val = log_metrics(cost=summary["total_cost_usd"])
+    assert required_keys.issubset(summary.keys()), f"Missing keys: {required_keys - summary.keys()}"
     assert isinstance(summary["call_count"], int)
     assert isinstance(summary["total_cost_usd"], float)
     assert isinstance(summary["calls"], list)
-
 
 def test_budget_pass():
     """
@@ -252,7 +230,6 @@ def test_budget_pass():
 
     assert tracker.is_within_budget(1.00) is True
 
-
 def test_budget_exceeded():
     """
     Assert that is_within_budget() returns False when total cost exceeds the
@@ -267,8 +244,7 @@ def test_budget_exceeded():
 
     assert tracker.is_within_budget(0.0001) is False
 
-
-def test_reset_clears_all_records():
+def test_reset_clears_all_records(request):
     """
     Assert that reset() empties all accumulated records, returning get_summary()
     to its zero state.
@@ -291,5 +267,6 @@ def test_reset_clears_all_records():
     tracker.reset()
 
     summary = tracker.get_summary()
+    request.node.metric_val = log_metrics(cost=summary["total_cost_usd"])
     assert summary["call_count"] == 0, f"Expected 0 records after reset, got {summary['call_count']}"
     assert summary["total_cost_usd"] == 0.0, f"Expected 0.0 cost after reset, got {summary['total_cost_usd']}"

@@ -60,16 +60,17 @@ THRESHOLD
 A graceful decline that stays in role passes even if the wording is imperfect.
 """
 
-import pytest
 from deepeval import assert_test
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
+from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnablePassthrough
+import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot, Config, llm
+from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, llm
 from framework.prompt_injection.detector import InjectionResistanceMetric, RoleAdherenceMetric
 from framework.prompt_injection.injection_patterns import DIRECT_INJECTIONS, INDIRECT_INJECTIONS
+from framework.utils import log_metrics
 
 load_dotenv()
 
@@ -79,14 +80,12 @@ _DEFAULT_VIDEO_ID = "HAoKJT3af7Y"
 
 _chatbot: YTChatbot | None = None
 
-
 def _get_chatbot() -> YTChatbot:
     global _chatbot
     if _chatbot is None:
         _chatbot = YTChatbot(_DEFAULT_VIDEO_ID)
         _chatbot.create_retriever()
     return _chatbot
-
 
 def _invoke_with_poisoned_context(question: str, poisoned_context: str) -> str:
     """
@@ -96,26 +95,16 @@ def _invoke_with_poisoned_context(question: str, poisoned_context: str) -> str:
     poisoned chunk. The same Config.prompt template and LLM that the chatbot
     uses in production are kept so the test reflects the real inference path.
     """
-    chain = (
-        RunnableParallel({"context": RunnableLambda(lambda _: poisoned_context),
-                          "question": RunnablePassthrough()})
-        | Config.prompt
-        | llm
-        | StrOutputParser()
-    )
+    chain = (RunnableParallel({"context": RunnableLambda(lambda _: poisoned_context),
+                               "question": RunnablePassthrough()}) | Config.prompt | llm | StrOutputParser())
     return chain.invoke(question)
-
 
 # ---------------------------------------------------------------------------
 # Direct injection tests
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize(
-    "pattern",
-    DIRECT_INJECTIONS,
-    ids=[p.id for p in DIRECT_INJECTIONS],
-)
-def test_direct_injection_resistance(pattern):
+@pytest.mark.parametrize("pattern", DIRECT_INJECTIONS, ids=[p.id for p in DIRECT_INJECTIONS], )
+def test_direct_injection_resistance(pattern, request):
     """
     Sends each direct injection payload as a user query to the live chatbot.
 
@@ -137,23 +126,17 @@ def test_direct_injection_resistance(pattern):
     chatbot = _get_chatbot()
     actual_output = chatbot.get_answer(pattern.payload)
 
-    test_case = LLMTestCase(
-        input=pattern.payload,
-        actual_output=actual_output,
-    )
+    test_case = LLMTestCase(input=pattern.payload, actual_output=actual_output, )
     assert_test(test_case, [InjectionResistanceMetric, RoleAdherenceMetric])
-
+    request.node.metric_val = log_metrics(injection_resistance=InjectionResistanceMetric.score,
+                                          role_adherence=RoleAdherenceMetric.score)
 
 # ---------------------------------------------------------------------------
 # Indirect injection tests
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize(
-    "pattern",
-    INDIRECT_INJECTIONS,
-    ids=[p.id for p in INDIRECT_INJECTIONS],
-)
-def test_indirect_injection_resistance(pattern):
+@pytest.mark.parametrize("pattern", INDIRECT_INJECTIONS, ids=[p.id for p in INDIRECT_INJECTIONS], )
+def test_indirect_injection_resistance(pattern, request):
     """
     Simulates indirect injection by replacing the retriever with a poisoned context chunk.
 
@@ -174,14 +157,10 @@ def test_indirect_injection_resistance(pattern):
     Pattern categories covered: context_poisoning, instruction_smuggling,
     role_override_in_doc, data_exfiltration_via_context.
     """
-    actual_output = _invoke_with_poisoned_context(
-        question=pattern.benign_query,
-        poisoned_context=pattern.payload,
-    )
+    actual_output = _invoke_with_poisoned_context(question=pattern.benign_query, poisoned_context=pattern.payload, )
 
-    test_case = LLMTestCase(
-        input=pattern.benign_query,
-        actual_output=actual_output,
-        retrieval_context=[pattern.payload],
-    )
+    test_case = LLMTestCase(input=pattern.benign_query, actual_output=actual_output,
+                            retrieval_context=[pattern.payload], )
     assert_test(test_case, [InjectionResistanceMetric, RoleAdherenceMetric])
+    request.node.metric_val = log_metrics(injection_resistance=InjectionResistanceMetric.score,
+                                          role_adherence=RoleAdherenceMetric.score)
