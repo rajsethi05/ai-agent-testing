@@ -15,6 +15,7 @@ import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
 from framework.retriever_quality import context_hit_rate, retrieve_with_latency
+from framework.utils import log_metrics
 
 load_dotenv()
 
@@ -39,7 +40,7 @@ def _load_test_cases():
     return test_cases[:3]  # to test with limited inputs  # return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
-def test_contextual_recall(video_id, query, expected_output, golden_context):
+def test_contextual_recall(video_id, query, expected_output, golden_context, request):
     """
     Checks whether the retrieved context contains all the information needed to fully answer the question.
     Aim: catch cases where your retriever missed relevant chunks. If the ground-truth answer has 5 facts and your
@@ -60,10 +61,12 @@ def test_contextual_recall(video_id, query, expected_output, golden_context):
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
                             retrieval_context=retrieval_context, )
+    request.node.metric_val= log_metrics(context_recall=ContextualRecallMetric.score)
+
     assert_test(test_case, [ContextualRecallMetric(threshold=0.5)])
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
-def test_contextual_precision(video_id, query, expected_output, golden_context):
+def test_contextual_precision(video_id, query, expected_output, golden_context, request):
     """
     Checks whether the retrieved chunks that are relevant to the question are ranked higher than irrelevant ones.
     Aim: catch cases where your retriever returns the right chunks but buries them behind noise. If chunk #1 is
@@ -79,10 +82,11 @@ def test_contextual_precision(video_id, query, expected_output, golden_context):
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, expected_output=expected_output,
                             retrieval_context=retrieval_context, )
+    request.node.metric_val= log_metrics(context_precision=ContextualPrecisionMetric.score)
     assert_test(test_case, [ContextualPrecisionMetric(threshold=0.5)])
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
-def test_contextual_relevancy(video_id, query, expected_output, golden_context):
+def test_contextual_relevancy(video_id, query, expected_output, golden_context, request):
     """
     Checks whether the retrieved chunks are actually relevant to the input query.
     Aim: catch cases where your retriever returns chunks that technically match keywords but don't address the question.
@@ -98,10 +102,11 @@ def test_contextual_relevancy(video_id, query, expected_output, golden_context):
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
+    request.node.metric_val= log_metrics(context_relevancy=ContextualRelevancyMetric.score)
     assert_test(test_case, [ContextualRelevancyMetric(threshold=0.5)])
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
-def test_context_hit_rate(video_id, query, expected_output, golden_context):
+def test_context_hit_rate(video_id, query, expected_output, golden_context, request):
     """
     Deterministic metric that checks whether the live retriever fetches the same source
     chunks that were used to generate the golden Q&A pair.
@@ -150,12 +155,13 @@ def test_context_hit_rate(video_id, query, expected_output, golden_context):
     retrieval_context = [doc.page_content for doc in retriever.invoke(query)]
 
     hit_rate = context_hit_rate(retrieval_context, golden_context)
-    assert hit_rate >= 0.5, (f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'")
+    request.node.metric_val= log_metrics(context_hit_rate=hit_rate)
+    assert hit_rate >= 0.5, f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'"
 
 LATENCY_THRESHOLD_MS = 2000
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
-def test_retrieval_latency(video_id, query, expected_output, golden_context):
+def test_retrieval_latency(video_id, query, expected_output, golden_context, request):
     """
     Non-functional metric that asserts the retriever responds within an acceptable time.
 
@@ -198,6 +204,6 @@ def test_retrieval_latency(video_id, query, expected_output, golden_context):
     chatbot = _get_chatbot(video_id)
     retriever = chatbot.create_retriever()
     _, latency_ms = retrieve_with_latency(retriever, query)
-
+    request.node.metric_val= log_metrics(retrieval_latency=latency_ms)
     assert latency_ms < LATENCY_THRESHOLD_MS, (
         f"Retrieval latency {latency_ms:.1f}ms exceeded threshold {LATENCY_THRESHOLD_MS}ms for query: '{query}'")

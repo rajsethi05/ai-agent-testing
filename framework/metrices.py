@@ -17,3 +17,11 @@ Consistency_metric = GEval(name="Consistency", evaluation_steps=[
     "Minor differences in wording, phrasing, or level of detail are acceptable and should not be penalised.",
     "Award a high score if both answers convey the same core information without contradiction.", ],
     evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.EXPECTED_OUTPUT], )
+
+Groundedness_metric = GEval(name="Groundedness", evaluation_steps=[
+    "Check if the answer introduces any information, conclusions, or recommendations that are not explicitly present in the retrieval context.",
+    "Penalise answers that extrapolate or draw inferences beyond what the context directly states.",
+    "Penalise answers that use generalisations such as 'generally', 'typically', 'experts say', or 'studies show' when the context does not support such claims.",
+    "Reward answers that accurately reflect the scope and limitations of the provided context, including saying 'I don't know' when the context is insufficient.", ],
+                            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT,
+                                               LLMTestCaseParams.RETRIEVAL_CONTEXT], )

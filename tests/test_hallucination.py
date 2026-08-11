@@ -8,13 +8,14 @@ import os.path
 from pathlib import Path
 
 from deepeval import assert_test
-from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric, GEval
-from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric
+from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
 from framework.metrices import Consistency_metric
+from framework.utils import log_metrics
 
 load_dotenv()
 
@@ -38,7 +39,7 @@ def _load_test_cases():
     return test_cases[:3]  # to test with limited inputs  # return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
-def test_faithfulness(video_id, query, expected_output):
+def test_faithfulness(video_id, query, expected_output, request):
     """
     Detects hallucinations by checking whether the LLM's answer is grounded in the
     retrieved context.
@@ -89,18 +90,11 @@ def test_faithfulness(video_id, query, expected_output):
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
+    request.node.metric_val = log_metrics(faithfulness_score=FaithfulnessMetric.score)
     assert_test(test_case, [FaithfulnessMetric(threshold=0.7)])
 
-groundedness_metric = GEval(name="Groundedness", evaluation_steps=[
-    "Check if the answer introduces any information, conclusions, or recommendations that are not explicitly present in the retrieval context.",
-    "Penalise answers that extrapolate or draw inferences beyond what the context directly states.",
-    "Penalise answers that use generalisations such as 'generally', 'typically', 'experts say', or 'studies show' when the context does not support such claims.",
-    "Reward answers that accurately reflect the scope and limitations of the provided context, including saying 'I don't know' when the context is insufficient.", ],
-                            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT,
-                                               LLMTestCaseParams.RETRIEVAL_CONTEXT], )
-
 @pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
-def test_answer_relevancy(video_id, query, expected_output):
+def test_answer_relevancy(video_id, query, expected_output, request):
     """
     Checks whether the LLM's answer actually addresses the question that was asked.
 
@@ -158,10 +152,11 @@ def test_answer_relevancy(video_id, query, expected_output):
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
     test_case = LLMTestCase(input=query, actual_output=actual_output, retrieval_context=retrieval_context)
+    request.node.metric_val = log_metrics(relev_metric=AnswerRelevancyMetric.score)
     assert_test(test_case, [AnswerRelevancyMetric(threshold=0.7)])
 
 @pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
-def test_consistency(video_id, query, expected_output):
+def test_consistency(video_id, query, expected_output, request):
     """
     Detects hallucination instability by checking whether the LLM gives consistent
     answers when asked the same question twice.
@@ -211,4 +206,5 @@ def test_consistency(video_id, query, expected_output):
     answer_2 = chatbot.get_answer(query)
 
     test_case = LLMTestCase(input=query, actual_output=answer_1, expected_output=answer_2)
+    request.node.metric_val = log_metrics(consistency_metric=Consistency_metric.score)
     assert_test(test_case, [Consistency_metric])
