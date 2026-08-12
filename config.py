@@ -17,3 +17,7 @@ LENGTH_CV_THRESHOLD = 0.05
 # *------------- test_cost_tracking.py ----*
 
 COST_PER_QUERY_LIMIT_USD = 0.01
+
+# *------------- test_prompt_injection.py ---------*
+
+DEFAULT_VIDEO_ID = "HAoKJT3af7Y"
