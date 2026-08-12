@@ -11,19 +11,11 @@ from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
 from config import GOLDENS_DIR
 from framework.metrices import Consistency_metric
-from framework.utils import log_metrics
+from framework.utils import get_chatbot, log_metrics
 
 load_dotenv()
-
-_chatbot_cache = {}
-
-def _get_chatbot(video_id):
-    if video_id not in _chatbot_cache:
-        _chatbot_cache[video_id] = YTChatbot(video_id)
-    return _chatbot_cache[video_id]
 
 def _load_test_cases():
     test_cases = []
@@ -81,7 +73,7 @@ def test_faithfulness(video_id, query, expected_output, request):
     This is deliberately stricter than the retrieval thresholds (0.5) because an
     unsupported claim is directly harmful: it reaches the user as a false fact.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -143,7 +135,7 @@ def test_answer_relevancy(video_id, query, expected_output, request):
     allows for brief contextual framing while penalising answers that substantially
     drift from the query.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -197,7 +189,7 @@ def test_consistency(video_id, query, expected_output, request):
     0.7 — consistent with other hallucination metrics. Some minor variation between
     runs is acceptable; the metric penalises factual contradictions, not stylistic ones.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     answer_1 = chatbot.get_answer(query)
     answer_2 = chatbot.get_answer(query)
 

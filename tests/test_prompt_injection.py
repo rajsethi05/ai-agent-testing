@@ -67,25 +67,16 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnablePassthrough
 import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, llm
+from agents.rag_youtube_chatbot.yt_chatbot import Config, llm
 from framework.prompt_injection.detector import InjectionResistanceMetric, RoleAdherenceMetric
 from framework.prompt_injection.injection_patterns import DIRECT_INJECTIONS, INDIRECT_INJECTIONS
-from framework.utils import log_metrics
+from framework.utils import get_chatbot, log_metrics
 
 load_dotenv()
 
 # Any video whose vector store is already cached — used to initialise the
 # chatbot for direct injection tests without making a network call.
 _DEFAULT_VIDEO_ID = "HAoKJT3af7Y"
-
-_chatbot: YTChatbot | None = None
-
-def _get_chatbot() -> YTChatbot:
-    global _chatbot
-    if _chatbot is None:
-        _chatbot = YTChatbot(_DEFAULT_VIDEO_ID)
-        _chatbot.create_retriever()
-    return _chatbot
 
 def _invoke_with_poisoned_context(question: str, poisoned_context: str) -> str:
     """
@@ -123,7 +114,7 @@ def test_direct_injection_resistance(pattern, request):
     persona_hijacking, task_hijacking, delimiter_injection, roleplay_jailbreak,
     instruction_chaining, obfuscated_injection.
     """
-    chatbot = _get_chatbot()
+    chatbot = get_chatbot(_DEFAULT_VIDEO_ID)
     actual_output = chatbot.get_answer(pattern.payload)
 
     test_case = LLMTestCase(input=pattern.payload, actual_output=actual_output, )

@@ -50,7 +50,6 @@ import json
 from deepeval import assert_test
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 import pytest
@@ -58,25 +57,16 @@ import pytest
 from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, parser
 from config import GOLDENS_DIR, LENGTH_CV_THRESHOLD, N_RUNS
 from framework.deterministic.checker import (SemanticEquivalenceMetric, compute_exact_match_rate, compute_length_cv, )
-from framework.utils import log_metrics
+from framework.utils import get_chatbot, log_metrics
 
 load_dotenv()
 
 _llm_t0 = ChatOpenAI(model=Config.llm_model_name, temperature=0)
 
-_chatbot_cache: dict[str, YTChatbot] = {}
-
-def _get_chatbot(video_id: str) -> YTChatbot:
-    if video_id not in _chatbot_cache:
-        bot = YTChatbot(video_id)
-        bot.create_retriever()
-        _chatbot_cache[video_id] = bot
-    return _chatbot_cache[video_id]
-
 def _get_answer_t0(chatbot: YTChatbot, question: str) -> str:
     """Run the chatbot's RAG chain at temperature=0, reusing its retriever and prompt."""
     chain = (RunnableParallel({"context": chatbot.retriever | RunnableLambda(chatbot.format_context),
-        "question": RunnablePassthrough(), }) | Config.prompt | _llm_t0 | parser)
+                               "question": RunnablePassthrough(), }) | Config.prompt | _llm_t0 | parser)
     return chain.invoke(question)
 
 def _load_test_cases():
@@ -109,7 +99,7 @@ def test_exact_match(video_id, query, request):
       introduces minor token-level differences due to server-side batching.
     - Model version drift: the underlying model weights were silently updated.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     outputs = [_get_answer_t0(chatbot, query) for _ in range(N_RUNS)]
     rate = compute_exact_match_rate(outputs)
     request.node.metric_val = log_metrics(match_rate=rate)
@@ -142,12 +132,12 @@ def test_output_length_stability(video_id, query, request):
     The second case is the more serious failure and warrants deeper investigation
     into retriever ordering or model version drift.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     outputs = [_get_answer_t0(chatbot, query) for _ in range(N_RUNS)]
     cv = compute_length_cv(outputs)
     request.node.metric_val = log_metrics(length_cv=cv)
     assert cv < LENGTH_CV_THRESHOLD, (f"OutputLengthCV={cv:.4f} exceeds threshold {LENGTH_CV_THRESHOLD}.\n"
-                                       f"Lengths: {[len(o) for o in outputs]}")
+                                      f"Lengths: {[len(o) for o in outputs]}")
 
 @pytest.mark.parametrize("video_id,query", _load_test_cases())
 def test_semantic_equivalence(video_id, query, request):
@@ -181,7 +171,7 @@ def test_semantic_equivalence(video_id, query, request):
     More commonly, if exact match fails and the CV is also elevated, this metric
     confirms whether the informational content actually diverged or just the wording.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     answer_1 = _get_answer_t0(chatbot, query)
     answer_2 = _get_answer_t0(chatbot, query)
 

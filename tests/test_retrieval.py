@@ -11,19 +11,11 @@ from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
 from config import GOLDENS_DIR, LATENCY_THRESHOLD_MS
 from framework.retriever_quality import context_hit_rate, retrieve_with_latency
-from framework.utils import log_metrics
+from framework.utils import get_chatbot, log_metrics
 
 load_dotenv()
-
-_chatbot_cache = {}
-
-def _get_chatbot(video_id):
-    if video_id not in _chatbot_cache:
-        _chatbot_cache[video_id] = YTChatbot(video_id)
-    return _chatbot_cache[video_id]
 
 def _load_test_cases():
     test_cases = []
@@ -51,7 +43,7 @@ def test_contextual_recall(video_id, query, expected_output, golden_context, req
     :param golden_context:
     :return:
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -72,7 +64,7 @@ def test_contextual_precision(video_id, query, expected_output, golden_context, 
     pipeline's retriever by evaluating whether relevant nodes in your retrieval_context are ranked higher than
     irrelevant ones.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -93,7 +85,7 @@ def test_contextual_relevancy(video_id, query, expected_output, golden_context, 
     pipeline's retriever by evaluating the overall relevance of the information presented in your retrieval_context
     given an input.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -146,7 +138,7 @@ def test_context_hit_rate(video_id, query, expected_output, golden_context, requ
     With k=2 chunks retrieved and golden context often containing 2-3 chunks, this is
     a meaningful but achievable bar.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     retriever = chatbot.create_retriever()
     retrieval_context = [doc.page_content for doc in retriever.invoke(query)]
 
@@ -192,10 +184,10 @@ def test_retrieval_latency(video_id, query, expected_output, golden_context, req
     -------------------
     Uses time.perf_counter() via retrieve_with_latency() for sub-millisecond precision.
     Each test case invokes the retriever independently so latency is measured per query,
-    not as a batch average. The chatbot cache (_get_chatbot) ensures the Chroma index
+    not as a batch average. The chatbot cache (get_chatbot) ensures the Chroma index
     is already loaded before timing starts — cold-start load time is not included.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     retriever = chatbot.create_retriever()
     _, latency_ms = retrieve_with_latency(retriever, query)
     request.node.metric_val= log_metrics(retrieval_latency=latency_ms)
