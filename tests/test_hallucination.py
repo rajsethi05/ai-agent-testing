@@ -4,8 +4,6 @@ Metrics in this module check whether the LLM's generated answers are grounded
 in the retrieved context, rather than containing invented or unsupported facts.
 """
 import json
-import os.path
-from pathlib import Path
 
 from deepeval import assert_test
 from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric
@@ -14,13 +12,11 @@ from dotenv import load_dotenv
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
+from config import GOLDENS_DIR
 from framework.metrices import Consistency_metric
 from framework.utils import log_metrics
 
 load_dotenv()
-
-parent_dir = Path(os.path.dirname(__file__)).parent
-goldens_dir = os.path.join(parent_dir, "framework/golden_dataset/datasets")
 
 _chatbot_cache = {}
 
@@ -31,12 +27,12 @@ def _get_chatbot(video_id):
 
 def _load_test_cases():
     test_cases = []
-    for json_file in sorted(Path(goldens_dir).glob("*.json")):
+    for json_file in sorted(GOLDENS_DIR.glob("*.json")):
         video_id = json_file.stem
         entries = json.loads(json_file.read_text())
         for i, entry in enumerate(entries):
             test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], id=f"{video_id}[{i}]"))
-    return test_cases[:3]  # to test with limited inputs  # return test_cases
+    return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
 def test_faithfulness(video_id, query, expected_output, request):

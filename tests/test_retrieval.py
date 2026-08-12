@@ -4,8 +4,6 @@ It loops through all the golden dataset and evaluates the retrieval quality on t
 - ContextualRecallMetric: checks whether expected answer facts are attributable to the retrieved chunks
 """
 import json
-import os.path
-from pathlib import Path
 
 from deepeval import assert_test
 from deepeval.metrics import ContextualPrecisionMetric, ContextualRecallMetric, ContextualRelevancyMetric
@@ -14,13 +12,11 @@ from dotenv import load_dotenv
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
+from config import GOLDENS_DIR, LATENCY_THRESHOLD_MS
 from framework.retriever_quality import context_hit_rate, retrieve_with_latency
 from framework.utils import log_metrics
 
 load_dotenv()
-
-parent_dir = Path(os.path.dirname(__file__)).parent
-goldens_dir = os.path.join(parent_dir, "framework/golden_dataset/datasets")
 
 _chatbot_cache = {}
 
@@ -31,13 +27,13 @@ def _get_chatbot(video_id):
 
 def _load_test_cases():
     test_cases = []
-    for json_file in sorted(Path(goldens_dir).glob("*.json")):
+    for json_file in sorted(GOLDENS_DIR.glob("*.json")):
         video_id = json_file.stem
         entries = json.loads(json_file.read_text())
         for i, entry in enumerate(entries):
             test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], entry["context"],
                                            id=f"{video_id}[{i}]", ))
-    return test_cases[:3]  # to test with limited inputs  # return test_cases
+    return test_cases
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_contextual_recall(video_id, query, expected_output, golden_context, request):
@@ -157,8 +153,6 @@ def test_context_hit_rate(video_id, query, expected_output, golden_context, requ
     hit_rate = context_hit_rate(retrieval_context, golden_context)
     request.node.metric_val= log_metrics(context_hit_rate=hit_rate)
     assert hit_rate >= 0.5, f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'"
-
-LATENCY_THRESHOLD_MS = 2000
 
 @pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
 def test_retrieval_latency(video_id, query, expected_output, golden_context, request):

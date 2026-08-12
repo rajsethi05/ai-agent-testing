@@ -46,8 +46,6 @@ All three metrics are defined in framework/deterministic/checker.py:
 """
 
 import json
-import os
-from pathlib import Path
 
 from deepeval import assert_test
 from deepeval.test_case import LLMTestCase
@@ -57,20 +55,14 @@ from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnableP
 from langchain_openai import ChatOpenAI
 import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot
+from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, parser
+from config import GOLDENS_DIR, LENGTH_CV_THRESHOLD, N_RUNS
 from framework.deterministic.checker import (SemanticEquivalenceMetric, compute_exact_match_rate, compute_length_cv, )
 from framework.utils import log_metrics
 
 load_dotenv()
 
-parent_dir = Path(os.path.dirname(__file__)).parent
-goldens_dir = os.path.join(parent_dir, "framework/golden_dataset/datasets")
-
-_N_RUNS = 3
-_LENGTH_CV_THRESHOLD = 0.05
-
 _llm_t0 = ChatOpenAI(model=Config.llm_model_name, temperature=0)
-_parser = StrOutputParser()
 
 _chatbot_cache: dict[str, YTChatbot] = {}
 
@@ -84,17 +76,17 @@ def _get_chatbot(video_id: str) -> YTChatbot:
 def _get_answer_t0(chatbot: YTChatbot, question: str) -> str:
     """Run the chatbot's RAG chain at temperature=0, reusing its retriever and prompt."""
     chain = (RunnableParallel({"context": chatbot.retriever | RunnableLambda(chatbot.format_context),
-        "question": RunnablePassthrough(), }) | Config.prompt | _llm_t0 | _parser)
+        "question": RunnablePassthrough(), }) | Config.prompt | _llm_t0 | parser)
     return chain.invoke(question)
 
 def _load_test_cases():
     test_cases = []
-    for json_file in sorted(Path(goldens_dir).glob("*.json")):
+    for json_file in sorted(GOLDENS_DIR.glob("*.json")):
         video_id = json_file.stem
         entries = json.loads(json_file.read_text())
         for i, entry in enumerate(entries):
             test_cases.append(pytest.param(video_id, entry["input"], id=f"{video_id}[{i}]"))
-    return test_cases[:3]
+    return test_cases
 
 @pytest.mark.parametrize("video_id,query", _load_test_cases())
 def test_exact_match(video_id, query, request):
@@ -118,10 +110,10 @@ def test_exact_match(video_id, query, request):
     - Model version drift: the underlying model weights were silently updated.
     """
     chatbot = _get_chatbot(video_id)
-    outputs = [_get_answer_t0(chatbot, query) for _ in range(_N_RUNS)]
+    outputs = [_get_answer_t0(chatbot, query) for _ in range(N_RUNS)]
     rate = compute_exact_match_rate(outputs)
     request.node.metric_val = log_metrics(match_rate=rate)
-    assert rate == 1.0, (f"ExactMatchRate={rate:.2f} — not all {_N_RUNS} outputs were identical.\n" + "\n".join(
+    assert rate == 1.0, (f"ExactMatchRate={rate:.2f} — not all {N_RUNS} outputs were identical.\n" + "\n".join(
         f"Run {i}: {repr(o)}" for i, o in enumerate(outputs)))
 
 @pytest.mark.parametrize("video_id,query", _load_test_cases())
@@ -151,10 +143,10 @@ def test_output_length_stability(video_id, query, request):
     into retriever ordering or model version drift.
     """
     chatbot = _get_chatbot(video_id)
-    outputs = [_get_answer_t0(chatbot, query) for _ in range(_N_RUNS)]
+    outputs = [_get_answer_t0(chatbot, query) for _ in range(N_RUNS)]
     cv = compute_length_cv(outputs)
     request.node.metric_val = log_metrics(length_cv=cv)
-    assert cv < _LENGTH_CV_THRESHOLD, (f"OutputLengthCV={cv:.4f} exceeds threshold {_LENGTH_CV_THRESHOLD}.\n"
+    assert cv < LENGTH_CV_THRESHOLD, (f"OutputLengthCV={cv:.4f} exceeds threshold {LENGTH_CV_THRESHOLD}.\n"
                                        f"Lengths: {[len(o) for o in outputs]}")
 
 @pytest.mark.parametrize("video_id,query", _load_test_cases())

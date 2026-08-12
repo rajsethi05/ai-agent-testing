@@ -53,13 +53,14 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
+from config import COST_PER_QUERY_LIMIT_USD
 from framework.cost_tracking.cost_tracker import CallRecord, CostTracker
 from framework.utils import log_metrics
+
 load_dotenv()
 
 _VIDEO_ID = "HAoKJT3af7Y"
 _TEST_QUESTION = "How does Deep Eval automate comparison of different LLMs?"
-_COST_PER_QUERY_LIMIT_USD = 0.01
 
 _chatbot_cache: dict[str, YTChatbot] = {}
 
@@ -115,9 +116,9 @@ def test_single_query_captures_tokens_and_cost(request):
     assert summary["total_output_tokens"] > 0, "No output tokens captured — LLM may have returned an empty response"
     assert summary["total_cost_usd"] > 0, ("Cost is 0.0 despite non-zero tokens — check that Config.llm_model_name "
                                            "is present in CostTracker.PRICING")
-    assert summary["total_cost_usd"] < _COST_PER_QUERY_LIMIT_USD, (
+    assert summary["total_cost_usd"] < COST_PER_QUERY_LIMIT_USD, (
         f"Single query cost ${summary['total_cost_usd']:.6f} exceeds "
-        f"limit ${_COST_PER_QUERY_LIMIT_USD} — possible prompt bloat or retrieval misconfiguration")
+        f"limit ${COST_PER_QUERY_LIMIT_USD} — possible prompt bloat or retrieval misconfiguration")
 
 def test_multiple_queries_cost_accumulates(request):
     """

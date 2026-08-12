@@ -143,36 +143,3 @@ class YTChatbot:
         return result
 
 logger.info("*********** New Chat started *********************")
-
-# vectors = get_or_create_vector_store()
-
-# Step 4 Perform search
-# retriever = vectors.as_retriever(search_type="similarity", search_kwargs={"k": 2})
-
-# question = "How many kinds of procrastinators are there ?"
-
-
-# *************************** Without Using Chains *****************************
-
-# context = format_context(retriever.invoke(question))
-# logger.info("Context retrieved")
-#
-#
-# final_prompt = prompt.invoke({"context": context, "question": question})
-# answer = llm.invoke(final_prompt)
-# logger.info("LLM response received")
-# print(answer.content)
-
-# *************************** Using Chains *****************************
-# question = "Who are the founders of MM0 ?"
-# yt= YTChatbot("Sr1STQP0cds")
-# retriever = yt.get_or_create_vector_store().as_retriever(search_type="similarity", search_kwargs={"k": 2})
-#
-# retriever_chain = RunnableParallel({
-#     "context": retriever | RunnableLambda(yt.format_context),
-#     "question": RunnablePassthrough()
-# })
-#
-# final_chain = retriever_chain | Config.prompt | llm | parser
-# result  = final_chain.invoke(question)
-# print(result)
