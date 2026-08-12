@@ -45,8 +45,6 @@ All three metrics are defined in framework/deterministic/checker.py:
                            more or less than the other). Threshold: 0.8.
 """
 
-import json
-
 from deepeval import assert_test
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
@@ -55,9 +53,9 @@ from langchain_openai import ChatOpenAI
 import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, parser
-from config import GOLDENS_DIR, LENGTH_CV_THRESHOLD, N_RUNS
+from config import LENGTH_CV_THRESHOLD, N_RUNS
 from framework.deterministic.checker import (SemanticEquivalenceMetric, compute_exact_match_rate, compute_length_cv, )
-from framework.utils import get_chatbot, log_metrics
+from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()
 
@@ -69,16 +67,8 @@ def _get_answer_t0(chatbot: YTChatbot, question: str) -> str:
                                "question": RunnablePassthrough(), }) | Config.prompt | _llm_t0 | parser)
     return chain.invoke(question)
 
-def _load_test_cases():
-    test_cases = []
-    for json_file in sorted(GOLDENS_DIR.glob("*.json")):
-        video_id = json_file.stem
-        entries = json.loads(json_file.read_text())
-        for i, entry in enumerate(entries):
-            test_cases.append(pytest.param(video_id, entry["input"], id=f"{video_id}[{i}]"))
-    return test_cases
 
-@pytest.mark.parametrize("video_id,query", _load_test_cases())
+@pytest.mark.parametrize("video_id,query", load_test_cases(["input"]))
 def test_exact_match(video_id, query, request):
     """
     Asserts that N=3 calls at temperature=0 produce character-for-character identical outputs.
@@ -106,7 +96,7 @@ def test_exact_match(video_id, query, request):
     assert rate == 1.0, (f"ExactMatchRate={rate:.2f} — not all {N_RUNS} outputs were identical.\n" + "\n".join(
         f"Run {i}: {repr(o)}" for i, o in enumerate(outputs)))
 
-@pytest.mark.parametrize("video_id,query", _load_test_cases())
+@pytest.mark.parametrize("video_id,query", load_test_cases(["input"]))
 def test_output_length_stability(video_id, query, request):
     """
     Asserts that N=3 temperature=0 outputs have less than 5% variation in length.
@@ -139,7 +129,7 @@ def test_output_length_stability(video_id, query, request):
     assert cv < LENGTH_CV_THRESHOLD, (f"OutputLengthCV={cv:.4f} exceeds threshold {LENGTH_CV_THRESHOLD}.\n"
                                       f"Lengths: {[len(o) for o in outputs]}")
 
-@pytest.mark.parametrize("video_id,query", _load_test_cases())
+@pytest.mark.parametrize("video_id,query", load_test_cases(["input"]))
 def test_semantic_equivalence(video_id, query, request):
     """
     Asserts that two temperature=0 answers are informationally identical (GEval).

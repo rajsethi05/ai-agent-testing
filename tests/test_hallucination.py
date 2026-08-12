@@ -3,30 +3,19 @@ Hallucination detection tests for the RAG pipeline.
 Metrics in this module check whether the LLM's generated answers are grounded
 in the retrieved context, rather than containing invented or unsupported facts.
 """
-import json
-
 from deepeval import assert_test
 from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
-from config import GOLDENS_DIR
 from framework.metrices import Consistency_metric
-from framework.utils import get_chatbot, log_metrics
+from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()
 
-def _load_test_cases():
-    test_cases = []
-    for json_file in sorted(GOLDENS_DIR.glob("*.json")):
-        video_id = json_file.stem
-        entries = json.loads(json_file.read_text())
-        for i, entry in enumerate(entries):
-            test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], id=f"{video_id}[{i}]"))
-    return test_cases
 
-@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_faithfulness(video_id, query, expected_output, request):
     """
     Detects hallucinations by checking whether the LLM's answer is grounded in the
@@ -81,7 +70,7 @@ def test_faithfulness(video_id, query, expected_output, request):
     request.node.metric_val = log_metrics(faithfulness_score=FaithfulnessMetric.score)
     assert_test(test_case, [FaithfulnessMetric(threshold=0.7)])
 
-@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_answer_relevancy(video_id, query, expected_output, request):
     """
     Checks whether the LLM's answer actually addresses the question that was asked.
@@ -143,7 +132,7 @@ def test_answer_relevancy(video_id, query, expected_output, request):
     request.node.metric_val = log_metrics(relev_metric=AnswerRelevancyMetric.score)
     assert_test(test_case, [AnswerRelevancyMetric(threshold=0.7)])
 
-@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_consistency(video_id, query, expected_output, request):
     """
     Detects hallucination instability by checking whether the LLM gives consistent

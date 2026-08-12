@@ -3,31 +3,20 @@ Test file to test retrieval quality.
 It loops through all the golden dataset and evaluates the retrieval quality on the below metrics:
 - ContextualRecallMetric: checks whether expected answer facts are attributable to the retrieved chunks
 """
-import json
-
 from deepeval import assert_test
 from deepeval.metrics import ContextualPrecisionMetric, ContextualRecallMetric, ContextualRelevancyMetric
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
-from config import GOLDENS_DIR, LATENCY_THRESHOLD_MS
+from config import LATENCY_THRESHOLD_MS
 from framework.retriever_quality import context_hit_rate, retrieve_with_latency
-from framework.utils import get_chatbot, log_metrics
+from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()
 
-def _load_test_cases():
-    test_cases = []
-    for json_file in sorted(GOLDENS_DIR.glob("*.json")):
-        video_id = json_file.stem
-        entries = json.loads(json_file.read_text())
-        for i, entry in enumerate(entries):
-            test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], entry["context"],
-                                           id=f"{video_id}[{i}]", ))
-    return test_cases
 
-@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", load_test_cases(["input", "expected_output", "context"]))
 def test_contextual_recall(video_id, query, expected_output, golden_context, request):
     """
     Checks whether the retrieved context contains all the information needed to fully answer the question.
@@ -53,7 +42,7 @@ def test_contextual_recall(video_id, query, expected_output, golden_context, req
 
     assert_test(test_case, [ContextualRecallMetric(threshold=0.5)])
 
-@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", load_test_cases(["input", "expected_output", "context"]))
 def test_contextual_precision(video_id, query, expected_output, golden_context, request):
     """
     Checks whether the retrieved chunks that are relevant to the question are ranked higher than irrelevant ones.
@@ -73,7 +62,7 @@ def test_contextual_precision(video_id, query, expected_output, golden_context, 
     request.node.metric_val= log_metrics(context_precision=ContextualPrecisionMetric.score)
     assert_test(test_case, [ContextualPrecisionMetric(threshold=0.5)])
 
-@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", load_test_cases(["input", "expected_output", "context"]))
 def test_contextual_relevancy(video_id, query, expected_output, golden_context, request):
     """
     Checks whether the retrieved chunks are actually relevant to the input query.
@@ -93,7 +82,7 @@ def test_contextual_relevancy(video_id, query, expected_output, golden_context, 
     request.node.metric_val= log_metrics(context_relevancy=ContextualRelevancyMetric.score)
     assert_test(test_case, [ContextualRelevancyMetric(threshold=0.5)])
 
-@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", load_test_cases(["input", "expected_output", "context"]))
 def test_context_hit_rate(video_id, query, expected_output, golden_context, request):
     """
     Deterministic metric that checks whether the live retriever fetches the same source
@@ -146,7 +135,7 @@ def test_context_hit_rate(video_id, query, expected_output, golden_context, requ
     request.node.metric_val= log_metrics(context_hit_rate=hit_rate)
     assert hit_rate >= 0.5, f"Context hit rate {hit_rate:.2f} below threshold 0.5 for query: '{query}'"
 
-@pytest.mark.parametrize("video_id,query,expected_output,golden_context", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output,golden_context", load_test_cases(["input", "expected_output", "context"]))
 def test_retrieval_latency(video_id, query, expected_output, golden_context, request):
     """
     Non-functional metric that asserts the retriever responds within an acceptable time.
