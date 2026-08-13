@@ -3,42 +3,18 @@ Hallucination detection tests for the RAG pipeline.
 Metrics in this module check whether the LLM's generated answers are grounded
 in the retrieved context, rather than containing invented or unsupported facts.
 """
-import json
-import os.path
-from pathlib import Path
-
 from deepeval import assert_test
 from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric
 from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
-from framework.metrices import Consistency_metric
-from framework.utils import log_metrics
+from framework.hallucination.hallucination_detector import Consistency_metric
+from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()
 
-parent_dir = Path(os.path.dirname(__file__)).parent
-goldens_dir = os.path.join(parent_dir, "framework/golden_dataset/datasets")
-
-_chatbot_cache = {}
-
-def _get_chatbot(video_id):
-    if video_id not in _chatbot_cache:
-        _chatbot_cache[video_id] = YTChatbot(video_id)
-    return _chatbot_cache[video_id]
-
-def _load_test_cases():
-    test_cases = []
-    for json_file in sorted(Path(goldens_dir).glob("*.json")):
-        video_id = json_file.stem
-        entries = json.loads(json_file.read_text())
-        for i, entry in enumerate(entries):
-            test_cases.append(pytest.param(video_id, entry["input"], entry["expected_output"], id=f"{video_id}[{i}]"))
-    return test_cases[:3]  # to test with limited inputs  # return test_cases
-
-@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_faithfulness(video_id, query, expected_output, request):
     """
     Detects hallucinations by checking whether the LLM's answer is grounded in the
@@ -85,7 +61,7 @@ def test_faithfulness(video_id, query, expected_output, request):
     This is deliberately stricter than the retrieval thresholds (0.5) because an
     unsupported claim is directly harmful: it reaches the user as a false fact.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -93,7 +69,7 @@ def test_faithfulness(video_id, query, expected_output, request):
     request.node.metric_val = log_metrics(faithfulness_score=FaithfulnessMetric.score)
     assert_test(test_case, [FaithfulnessMetric(threshold=0.7)])
 
-@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_answer_relevancy(video_id, query, expected_output, request):
     """
     Checks whether the LLM's answer actually addresses the question that was asked.
@@ -147,7 +123,7 @@ def test_answer_relevancy(video_id, query, expected_output, request):
     allows for brief contextual framing while penalising answers that substantially
     drift from the query.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     actual_output = chatbot.get_answer(query)
     retrieval_context = [doc.page_content for doc in chatbot.retriever.invoke(query)]
 
@@ -155,7 +131,7 @@ def test_answer_relevancy(video_id, query, expected_output, request):
     request.node.metric_val = log_metrics(relev_metric=AnswerRelevancyMetric.score)
     assert_test(test_case, [AnswerRelevancyMetric(threshold=0.7)])
 
-@pytest.mark.parametrize("video_id,query,expected_output", _load_test_cases())
+@pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_consistency(video_id, query, expected_output, request):
     """
     Detects hallucination instability by checking whether the LLM gives consistent
@@ -180,13 +156,13 @@ def test_consistency(video_id, query, expected_output, request):
     Inconsistency is therefore a hallucination signal even when we cannot verify which
     answer is correct — we know that at minimum one is wrong.
 
-    HOW IT DIFFERS FROM DETERMINISTIC TESTING (TODO #3)
+    HOW IT DIFFERS FROM DETERMINISTIC TESTING ()
     ----------------------------------------------------
     Consistency and determinism are related but distinct:
 
       Consistency (this metric) — Do two answers agree on the facts? Tolerates
                                    differences in phrasing or detail level.
-      Determinism (TODO #3)     — Is the exact output character-for-character identical
+      Determinism ()     — Is the exact output character-for-character identical
                                    at temperature=0? A stricter, reproducibility-focused check.
 
     HOW THE TEST WORKS
@@ -201,7 +177,7 @@ def test_consistency(video_id, query, expected_output, request):
     0.7 — consistent with other hallucination metrics. Some minor variation between
     runs is acceptable; the metric penalises factual contradictions, not stylistic ones.
     """
-    chatbot = _get_chatbot(video_id)
+    chatbot = get_chatbot(video_id)
     answer_1 = chatbot.get_answer(query)
     answer_2 = chatbot.get_answer(query)
 

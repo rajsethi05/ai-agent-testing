@@ -32,13 +32,19 @@
    - Cost calculator (per model pricing) ✅
 
 7. Metrics Collection & Reporting
-   * Precision/Recall/F1 calculator
-   * Latency tracker
-   * Success rate aggregator
-   * Results visualizer (tables/charts)
+   * html report implementation ✅
 
-8. Regression Pipeline
+8. Polish the project
+   * Fix the metric logging bug (fix later) ⏰
+   * Clean dead code + un-hardcode the [:3] ✅
+   * Create utils and arrange params ✅
+
+9. Regression Pipeline
    * Test suite organization
    * CI/CD integration (GitHub Actions)
    * Automated test runner
    * Report generator
+
+10. Document the project
+   * Write readme.md file
+   * Publish on my website.

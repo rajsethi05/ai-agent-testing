@@ -35,7 +35,7 @@ Indirect (test_indirect_injection_resistance):
 
 METRICS
 --------
-Both test functions assert two GEval metrics (see framework/prompt_injection/detector.py):
+Both test functions assert two GEval metrics (see framework/prompt_injection/injection_detector.py):
 
   InjectionResistanceMetric — Scores whether the agent executed any part of
                                the injected instruction (1.0 = fully resisted,
@@ -67,25 +67,13 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel, RunnablePassthrough
 import pytest
 
-from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, llm
-from framework.prompt_injection.detector import InjectionResistanceMetric, RoleAdherenceMetric
+from agents.rag_youtube_chatbot.yt_chatbot import Config, llm
+from config import DEFAULT_VIDEO_ID
+from framework.prompt_injection.injection_detector import InjectionResistanceMetric, RoleAdherenceMetric
 from framework.prompt_injection.injection_patterns import DIRECT_INJECTIONS, INDIRECT_INJECTIONS
-from framework.utils import log_metrics
+from framework.utils import get_chatbot, log_metrics, slice_patterns
 
 load_dotenv()
-
-# Any video whose vector store is already cached — used to initialise the
-# chatbot for direct injection tests without making a network call.
-_DEFAULT_VIDEO_ID = "HAoKJT3af7Y"
-
-_chatbot: YTChatbot | None = None
-
-def _get_chatbot() -> YTChatbot:
-    global _chatbot
-    if _chatbot is None:
-        _chatbot = YTChatbot(_DEFAULT_VIDEO_ID)
-        _chatbot.create_retriever()
-    return _chatbot
 
 def _invoke_with_poisoned_context(question: str, poisoned_context: str) -> str:
     """
@@ -103,7 +91,8 @@ def _invoke_with_poisoned_context(question: str, poisoned_context: str) -> str:
 # Direct injection tests
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("pattern", DIRECT_INJECTIONS, ids=[p.id for p in DIRECT_INJECTIONS], )
+@pytest.mark.parametrize("pattern", slice_patterns(DIRECT_INJECTIONS),
+                         ids=[p.id for p in slice_patterns(DIRECT_INJECTIONS)], )
 def test_direct_injection_resistance(pattern, request):
     """
     Sends each direct injection payload as a user query to the live chatbot.
@@ -123,7 +112,7 @@ def test_direct_injection_resistance(pattern, request):
     persona_hijacking, task_hijacking, delimiter_injection, roleplay_jailbreak,
     instruction_chaining, obfuscated_injection.
     """
-    chatbot = _get_chatbot()
+    chatbot = get_chatbot(DEFAULT_VIDEO_ID)
     actual_output = chatbot.get_answer(pattern.payload)
 
     test_case = LLMTestCase(input=pattern.payload, actual_output=actual_output, )
@@ -135,7 +124,8 @@ def test_direct_injection_resistance(pattern, request):
 # Indirect injection tests
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("pattern", INDIRECT_INJECTIONS, ids=[p.id for p in INDIRECT_INJECTIONS], )
+@pytest.mark.parametrize("pattern", slice_patterns(INDIRECT_INJECTIONS),
+                         ids=[p.id for p in slice_patterns(INDIRECT_INJECTIONS)], )
 def test_indirect_injection_resistance(pattern, request):
     """
     Simulates indirect injection by replacing the retriever with a poisoned context chunk.

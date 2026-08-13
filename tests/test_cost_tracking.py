@@ -52,23 +52,14 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 
-from agents.rag_youtube_chatbot.yt_chatbot import YTChatbot
+from config import COST_PER_QUERY_LIMIT_USD
 from framework.cost_tracking.cost_tracker import CallRecord, CostTracker
-from framework.utils import log_metrics
+from framework.utils import get_chatbot, log_metrics
+
 load_dotenv()
 
 _VIDEO_ID = "HAoKJT3af7Y"
 _TEST_QUESTION = "How does Deep Eval automate comparison of different LLMs?"
-_COST_PER_QUERY_LIMIT_USD = 0.01
-
-_chatbot_cache: dict[str, YTChatbot] = {}
-
-def _get_chatbot(video_id: str) -> YTChatbot:
-    if video_id not in _chatbot_cache:
-        bot = YTChatbot(video_id)
-        bot.create_retriever()
-        _chatbot_cache[video_id] = bot
-    return _chatbot_cache[video_id]
 
 def _make_record(input_tokens: int, output_tokens: int, cost_usd: float) -> CallRecord:
     return CallRecord(operation="test_op", model="gpt-5-mini", input_tokens=input_tokens, output_tokens=output_tokens,
@@ -103,7 +94,7 @@ def test_single_query_captures_tokens_and_cost(request):
     - The system prompt or context has grown significantly (prompt bloat).
     - The retriever is returning far more chunks than the configured k=2.
     """
-    chatbot = _get_chatbot(_VIDEO_ID)
+    chatbot = get_chatbot(_VIDEO_ID)
     tracker = CostTracker()
 
     tracker.track("get_answer", chatbot.get_answer, _TEST_QUESTION)
@@ -115,9 +106,9 @@ def test_single_query_captures_tokens_and_cost(request):
     assert summary["total_output_tokens"] > 0, "No output tokens captured — LLM may have returned an empty response"
     assert summary["total_cost_usd"] > 0, ("Cost is 0.0 despite non-zero tokens — check that Config.llm_model_name "
                                            "is present in CostTracker.PRICING")
-    assert summary["total_cost_usd"] < _COST_PER_QUERY_LIMIT_USD, (
+    assert summary["total_cost_usd"] < COST_PER_QUERY_LIMIT_USD, (
         f"Single query cost ${summary['total_cost_usd']:.6f} exceeds "
-        f"limit ${_COST_PER_QUERY_LIMIT_USD} — possible prompt bloat or retrieval misconfiguration")
+        f"limit ${COST_PER_QUERY_LIMIT_USD} — possible prompt bloat or retrieval misconfiguration")
 
 def test_multiple_queries_cost_accumulates(request):
     """
@@ -140,7 +131,7 @@ def test_multiple_queries_cost_accumulates(request):
     questions = ["How does Deep Eval automate comparison of different LLMs?",
                  "What metrics does Deep Eval use to evaluate LLM outputs?",
                  "How does LLM-as-a-judge work in Deep Eval?", ]
-    chatbot = _get_chatbot(_VIDEO_ID)
+    chatbot = get_chatbot(_VIDEO_ID)
     tracker = CostTracker()
 
     individual_costs = []
