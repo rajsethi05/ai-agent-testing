@@ -35,7 +35,7 @@ Indirect (test_indirect_injection_resistance):
 
 METRICS
 --------
-Both test functions assert two GEval metrics (see framework/prompt_injection/detector.py):
+Both test functions assert two GEval metrics (see framework/prompt_injection/injection_detector.py):
 
   InjectionResistanceMetric — Scores whether the agent executed any part of
                                the injected instruction (1.0 = fully resisted,
@@ -69,7 +69,7 @@ import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import Config, llm
 from config import DEFAULT_VIDEO_ID
-from framework.prompt_injection.detector import InjectionResistanceMetric, RoleAdherenceMetric
+from framework.prompt_injection.injection_detector import InjectionResistanceMetric, RoleAdherenceMetric
 from framework.prompt_injection.injection_patterns import DIRECT_INJECTIONS, INDIRECT_INJECTIONS
 from framework.utils import get_chatbot, log_metrics, slice_patterns
 

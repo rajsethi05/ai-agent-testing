@@ -50,6 +50,7 @@ import statistics
 from deepeval.metrics import GEval
 from deepeval.test_case import LLMTestCaseParams
 
+from config import SEMANTICEQUIVALENCE_THRESHOLD
 
 def compute_exact_match_rate(outputs: list[str]) -> float:
     """
@@ -99,14 +100,9 @@ def compute_exact_match_rate(outputs: list[str]) -> float:
     """
     if len(outputs) < 2:
         return 1.0
-    pairs = [
-        (outputs[i], outputs[j])
-        for i in range(len(outputs))
-        for j in range(i + 1, len(outputs))
-    ]
+    pairs = [(outputs[i], outputs[j]) for i in range(len(outputs)) for j in range(i + 1, len(outputs))]
     identical = sum(1 for a, b in pairs if a == b)
     return identical / len(pairs)
-
 
 def compute_length_cv(outputs: list[str]) -> float:
     """
@@ -160,23 +156,6 @@ def compute_length_cv(outputs: list[str]) -> float:
         return 0.0
     return statistics.stdev(lengths) / mean
 
-
-SemanticEquivalenceMetric = GEval(
-    name="SemanticEquivalence",
-    evaluation_steps=[
-        "Compare 'actual output' (first answer) and 'expected output' (second answer) to the same question.",
-        "Penalise if one answer includes specific facts, numbers, names, or examples that the other omits — both omissions and additions reduce the score.",
-        "Penalise if the scope of one answer is broader or narrower than the other — for example, one qualifies a claim ('usually', 'in most cases') while the other states it absolutely.",
-        "Penalise if one answer draws a conclusion, makes a recommendation, or expresses a caveat that the other does not.",
-        "Minor differences in phrasing, sentence order, or synonymous word choice are acceptable and should not be penalised.",
-        "Award a high score only if both answers convey exactly the same information at the same level of detail and with the same scope.",
-    ],
-    evaluation_params=[
-        LLMTestCaseParams.INPUT,
-        LLMTestCaseParams.ACTUAL_OUTPUT,
-        LLMTestCaseParams.EXPECTED_OUTPUT,
-    ],
-)
 """
 SemanticEquivalenceMetric — GEval (LLM-as-judge)
 
@@ -188,7 +167,7 @@ but carrying exactly the same facts, scope, caveats, and level of detail.
 
 HOW IT DIFFERS FROM Consistency_metric
 ---------------------------------------
-Consistency_metric (framework/metrices.py) passes as long as the two answers
+Consistency_metric (framework/metrics.py) passes as long as the two answers
 do not directly contradict each other. Two answers can be consistent while one
 omits key facts that the other includes — Consistency does not penalise omission.
 
@@ -229,4 +208,14 @@ THRESHOLD
 0.8 — stricter than other GEval metrics in this project (which use 0.7) because
 temperature=0 answers should be nearly identical in content.
 """
-SemanticEquivalenceMetric.threshold = 0.8
+
+SemanticEquivalenceMetric = GEval(name="SemanticEquivalence", evaluation_steps=[
+    "Compare 'actual output' (first answer) and 'expected output' (second answer) to the same question.",
+    "Penalise if one answer includes specific facts, numbers, names, or examples that the other omits — both omissions and additions reduce the score.",
+    "Penalise if the scope of one answer is broader or narrower than the other — for example, one qualifies a claim ('usually', 'in most cases') while the other states it absolutely.",
+    "Penalise if one answer draws a conclusion, makes a recommendation, or expresses a caveat that the other does not.",
+    "Minor differences in phrasing, sentence order, or synonymous word choice are acceptable and should not be penalised.",
+    "Award a high score only if both answers convey exactly the same information at the same level of detail and with the same scope.", ],
+                                  evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT,
+                                                     LLMTestCaseParams.EXPECTED_OUTPUT, ],
+                                  threshold=SEMANTICEQUIVALENCE_THRESHOLD)

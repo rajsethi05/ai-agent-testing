@@ -9,11 +9,10 @@ from deepeval.test_case import LLMTestCase
 from dotenv import load_dotenv
 import pytest
 
-from framework.metrices import Consistency_metric
+from framework.hallucination.hallucination_detector import Consistency_metric
 from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()
-
 
 @pytest.mark.parametrize("video_id,query,expected_output", load_test_cases(["input", "expected_output"]))
 def test_faithfulness(video_id, query, expected_output, request):

@@ -28,7 +28,7 @@ and avoids changing agent production code.
 
 METRICS USED
 ------------
-All three metrics are defined in framework/deterministic/checker.py:
+All three metrics are defined in framework/deterministic/determinism_detector.py:
 
   ExactMatchRate         — Fraction of output pairs that are character-for-character
                            identical across N=3 runs. Threshold: 1.0 (all must match).
@@ -54,7 +54,7 @@ import pytest
 
 from agents.rag_youtube_chatbot.yt_chatbot import Config, YTChatbot, parser
 from config import LENGTH_CV_THRESHOLD, N_RUNS
-from framework.deterministic.checker import (SemanticEquivalenceMetric, compute_exact_match_rate, compute_length_cv, )
+from framework.deterministic.determinism_detector import (SemanticEquivalenceMetric, compute_exact_match_rate, compute_length_cv, )
 from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()
@@ -141,7 +141,7 @@ def test_semantic_equivalence(video_id, query, request):
     checks whether the two convey exactly the same information — same facts,
     same scope, same level of detail.
 
-    This is stricter than Consistency_metric (framework/metrices.py), which only
+    This is stricter than Consistency_metric (framework/metrics.py), which only
     penalises direct factual contradictions. SemanticEquivalence also penalises
     informational asymmetry: if one answer says more or less than the other, the
     score is reduced even if there is no direct contradiction.
