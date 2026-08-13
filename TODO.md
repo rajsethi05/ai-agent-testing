@@ -35,13 +35,16 @@
    * html report implementation ✅
 
 8. Polish the project
-   * Fix the metric logging bug
-   * Write the README
-   * Clean dead code + un-hardcode the [:3]
-   * Create utils and arrange params
+   * Fix the metric logging bug (fix later) ⏰
+   * Clean dead code + un-hardcode the [:3] ✅
+   * Create utils and arrange params ✅
 
 9. Regression Pipeline
    * Test suite organization
    * CI/CD integration (GitHub Actions)
    * Automated test runner
    * Report generator
+
+10. Document the project
+   * Write readme.md file
+   * Publish on my website.

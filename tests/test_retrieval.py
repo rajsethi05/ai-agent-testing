@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import pytest
 
 from config import LATENCY_THRESHOLD_MS
-from framework.retriever_quality import context_hit_rate, retrieve_with_latency
+from framework.retrieval.retriever_quality import context_hit_rate, retrieve_with_latency
 from framework.utils import get_chatbot, load_test_cases, log_metrics
 
 load_dotenv()

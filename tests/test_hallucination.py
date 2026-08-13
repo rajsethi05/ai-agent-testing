@@ -156,13 +156,13 @@ def test_consistency(video_id, query, expected_output, request):
     Inconsistency is therefore a hallucination signal even when we cannot verify which
     answer is correct — we know that at minimum one is wrong.
 
-    HOW IT DIFFERS FROM DETERMINISTIC TESTING (TODO #3)
+    HOW IT DIFFERS FROM DETERMINISTIC TESTING ()
     ----------------------------------------------------
     Consistency and determinism are related but distinct:
 
       Consistency (this metric) — Do two answers agree on the facts? Tolerates
                                    differences in phrasing or detail level.
-      Determinism (TODO #3)     — Is the exact output character-for-character identical
+      Determinism ()     — Is the exact output character-for-character identical
                                    at temperature=0? A stricter, reproducibility-focused check.
 
     HOW THE TEST WORKS
