@@ -7,13 +7,12 @@
 
 
 # * ----------- Quick smoke run — first 3 cases across all videos ------------- *
-MAX_TEST_CASES = 3 # will run only this number of tests
-VIDEO_IDS = None # will run all tests for this videoID
+# MAX_TEST_CASES = 3 # will run only this number of tests
+# VIDEO_IDS = None # will run all tests for this videoID
 
 # * ----------- Deep run on one specific video --------------- *
-# MAX_TEST_CASES = None
-# VIDEO_IDS = ["HAoKJT3af7Y"]
-
+MAX_TEST_CASES = None
+VIDEO_IDS = ["HAoKJT3af7Y"]
 
 # * ----------- Full suite ----------------- *
 # MAX_TEST_CASES = None

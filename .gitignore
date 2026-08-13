@@ -5,6 +5,7 @@
 .sqlite3
 agents/rag_youtube_chatbot/vector_stores/
 logs/
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
