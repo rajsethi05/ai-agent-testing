@@ -36,9 +36,6 @@ pytest tests/test_deepeval.py -v
 # Run via DeepEval CLI (enables richer metric output)
 deepeval test run tests/test_deepeval.py -v
 
-# Run the RAG agent demo
-python agents/rag_youtube_chatbot/runner.py
-
 # Regenerate golden datasets from transcripts
 python framework/golden_dataset/data_generation.py
 ```
@@ -59,21 +56,32 @@ python framework/golden_dataset/data_generation.py
 ```
 framework/
   golden_dataset/
-    data_generation.py     # Uses DeepEval Synthesizer to generate Q&A pairs from transcripts
-    datasets/              # JSON golden datasets (6 files, one per video)
-  retriever_quality.py     # Retriever evaluation utilities
+    data_generation.py       # Uses DeepEval Synthesizer to generate Q&A pairs from transcripts
+    datasets/                # JSON golden datasets (6 files, one per video)
+  retrieval/
+    retriever_quality.py     # Retriever evaluation utilities
+  hallucination/
+    hallucination_detector.py
+  prompt_injection/
+    injection_detector.py
+    injection_patterns.py    # Library of 20+ injection patterns
+  deterministic/
+    determinism_detector.py
+  cost_tracking/
+    cost_tracker.py
+  utils.py
 tests/
-  test_deepeval.py         # DeepEval metric tests (GEval, AnswerRelevancy, Faithfulness)
-  test_retrieval.py        # Retrieval-focused tests (in progress)
+  test_deepeval.py           # GEval, AnswerRelevancy, Faithfulness
+  test_retrieval.py          # Contextual recall, precision, relevancy; latency
+  test_hallucination.py      # Faithfulness, consistency
+  test_prompt_injection.py   # Direct and indirect injection patterns
+  test_deterministic.py      # Temperature=0 consistency
+  test_cost_tracking.py      # Token counting, cost per query
 ```
 
 **Golden dataset generation:** `data_generation.py` iterates transcript files, calls `Synthesizer` (chunk_size=150 tokens, 2 Q&A pairs per chunk), and writes JSON to `datasets/`.
 
 **Evaluation pattern:** Tests construct `LLMTestCase(input, actual_output, retrieval_context)` and assert DeepEval metrics. The LLM-as-a-judge pattern is used throughout — metrics call out to the configured LLM (OpenAI by default) to score outputs.
-
-### Planned Modules (not yet implemented)
-
-Per `TODO.md`: hallucination detection, prompt injection testing, deterministic behavior testing, output validation, cost tracking, metrics dashboard, regression pipeline, CI/CD.
 
 ## Key Design Decisions
 
